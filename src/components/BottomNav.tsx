@@ -4,15 +4,7 @@ import React, { memo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type BottomNavKey =
-  | "summary"
-  | "calendar"
-  | "events"
-  | "conflicts"
-  | "panel"
-  | "groups"
-  | "members"
-  | "invitations";
+type BottomNavKey = "summary" | "calendar" | "capture" | "conflicts" | "groups";
 
 type NavItem = {
   key: BottomNavKey;
@@ -76,28 +68,28 @@ function CalendarIcon({ active }: { active: boolean }) {
   );
 }
 
-function EventsIcon({ active }: { active: boolean }) {
+function CreatePlanIcon({ active }: { active: boolean }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect
-        x="4.5"
-        y="6"
-        width="15"
-        height="12"
-        rx="3"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        x="4.25"
+        y="4.25"
+        width="15.5"
+        height="15.5"
+        rx="5"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.88)"}
         strokeWidth="1.8"
       />
       <path
-        d="M8 12H16"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
+        d="M12 8.25V15.75"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.88)"}
+        strokeWidth="1.9"
         strokeLinecap="round"
       />
       <path
-        d="M12 8V16"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
+        d="M8.25 12H15.75"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.88)"}
+        strokeWidth="1.9"
         strokeLinecap="round"
       />
     </svg>
@@ -113,49 +105,6 @@ function ConflictsIcon({ active }: { active: boolean }) {
         strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function PanelIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect
-        x="4"
-        y="4"
-        width="7"
-        height="7"
-        rx="2"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-      />
-      <rect
-        x="13"
-        y="4"
-        width="7"
-        height="5"
-        rx="2"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-      />
-      <rect
-        x="13"
-        y="11"
-        width="7"
-        height="9"
-        rx="2"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-      />
-      <rect
-        x="4"
-        y="13"
-        width="7"
-        height="7"
-        rx="2"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
       />
     </svg>
   );
@@ -190,58 +139,12 @@ function GroupsIcon({ active }: { active: boolean }) {
   );
 }
 
-function MembersIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle
-        cx="12"
-        cy="8"
-        r="3"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-      />
-      <path
-        d="M6 18.25C7 15.8 9.1 14.5 12 14.5c2.9 0 5 1.3 6 3.75"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function InvitationsIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect
-        x="4"
-        y="6"
-        width="16"
-        height="12"
-        rx="2.5"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-      />
-      <path
-        d="M5.5 8L12 13l6.5-5"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 const NAV_ITEMS: NavItem[] = [
-  { key: "summary", label: "Resumen", path: "/summary", aria: "Ir a Resumen" },
+  { key: "summary", label: "Inicio", path: "/summary", aria: "Ir a Inicio" },
   { key: "calendar", label: "Calendario", path: "/calendar", aria: "Ir a Calendario" },
-  { key: "events", label: "Eventos", path: "/events", aria: "Ir a Eventos" },
+  { key: "capture", label: "Crear plan", path: "/capture", aria: "Crear plan" },
   { key: "conflicts", label: "Conflictos", path: "/conflicts/detected", aria: "Ir a Conflictos" },
-  { key: "panel", label: "Panel", path: "/panel", aria: "Ir a Panel" },
   { key: "groups", label: "Grupos", path: "/groups", aria: "Ir a Grupos" },
-  { key: "members", label: "Miembros", path: "/members", aria: "Ir a Miembros" },
-  { key: "invitations", label: "Invitaciones", path: "/invitations", aria: "Ir a Invitaciones" },
 ];
 
 function shouldHideBottomNav(pathname: string) {
@@ -260,18 +163,12 @@ function iconFor(key: BottomNavKey, active: boolean) {
       return <SummaryIcon active={active} />;
     case "calendar":
       return <CalendarIcon active={active} />;
-    case "events":
-      return <EventsIcon active={active} />;
+    case "capture":
+      return <CreatePlanIcon active={active} />;
     case "conflicts":
       return <ConflictsIcon active={active} />;
-    case "panel":
-      return <PanelIcon active={active} />;
     case "groups":
       return <GroupsIcon active={active} />;
-    case "members":
-      return <MembersIcon active={active} />;
-    case "invitations":
-      return <InvitationsIcon active={active} />;
     default:
       return null;
   }
@@ -282,73 +179,65 @@ function BottomNav() {
 
   if (shouldHideBottomNav(pathname)) return null;
 
-  const isPanelRelatedPath = (path: string) =>
-    path.startsWith("/panel") ||
-    path.startsWith("/settings") ||
-    path.startsWith("/pricing") ||
-    path.startsWith("/planes");
-
   const isActive = (key: BottomNavKey) => {
     if (key === "summary") return pathname.startsWith("/summary");
     if (key === "calendar") return pathname.startsWith("/calendar");
-    if (key === "events") return pathname.startsWith("/events");
+    if (key === "capture") {
+      return pathname.startsWith("/capture") || pathname.startsWith("/events/new");
+    }
     if (key === "conflicts") return pathname.startsWith("/conflicts");
-    if (key === "panel") return isPanelRelatedPath(pathname);
     if (key === "groups") return pathname.startsWith("/groups");
-    if (key === "members") return pathname.startsWith("/members");
-    if (key === "invitations") return pathname.startsWith("/invitations");
     return false;
   };
 
   return (
     <nav style={S.outer} aria-label="Navegación principal">
       <div style={S.wrap}>
-        <div style={S.viewport}>
-          <div style={S.track}>
-            {NAV_ITEMS.map((item) => {
-              const active = isActive(item.key);
+        <div style={S.track}>
+          {NAV_ITEMS.map((item) => {
+            const active = isActive(item.key);
+            const isPrimary = item.key === "capture";
 
-              return (
-                <Link
-                  key={item.key}
-                  href={item.path}
-                  scroll={false}
-                  aria-label={item.aria}
-                  aria-current={active ? "page" : undefined}
+            return (
+              <Link
+                key={item.key}
+                href={item.path}
+                scroll={false}
+                aria-label={item.aria}
+                aria-current={active ? "page" : undefined}
+                style={{
+                  ...S.item,
+                  ...(isPrimary ? S.itemPrimary : {}),
+                  ...(active ? S.itemActive : {}),
+                  ...(isPrimary && active ? S.itemPrimaryActive : {}),
+                }}
+              >
+                <div
+                  aria-hidden="true"
                   style={{
-                    ...S.item,
-                    ...(active ? S.itemActive : {}),
+                    ...S.iconWrap,
+                    ...(isPrimary ? S.iconWrapPrimary : {}),
+                    ...(active ? S.iconWrapActive : {}),
+                    ...(isPrimary && active ? S.iconWrapPrimaryActive : {}),
                   }}
                 >
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      ...S.iconWrap,
-                      ...(active ? S.iconWrapActive : {}),
-                    }}
-                  >
-                    {iconFor(item.key, active)}
-                  </div>
+                  {iconFor(item.key, active)}
+                </div>
 
-                  <span
-                    style={{
-                      ...S.label,
-                      ...(active ? S.labelActive : {}),
-                    }}
-                  >
-                    {item.label}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
+                <span
+                  style={{
+                    ...S.label,
+                    ...(isPrimary ? S.labelPrimary : {}),
+                    ...(active ? S.labelActive : {}),
+                  }}
+                >
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
         </div>
       </div>
-      <style jsx>{`
-        nav div::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
     </nav>
   );
 }
@@ -382,29 +271,17 @@ const S: Record<string, React.CSSProperties> = {
     overflow: "hidden",
   },
 
-  viewport: {
-    width: "100%",
-    maxWidth: "100%",
-    overflowX: "auto",
-    overflowY: "hidden",
-    overscrollBehaviorX: "contain",
-    WebkitOverflowScrolling: "touch",
-    scrollbarWidth: "none",
-    touchAction: "pan-x",
-  },
-
   track: {
-    width: "max-content",
+    width: "100%",
     minWidth: "100%",
-    display: "flex",
+    display: "grid",
+    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
     alignItems: "stretch",
     gap: 4,
   },
 
   item: {
-    flex: "0 0 68px",
-    width: 68,
-    minWidth: 68,
+    minWidth: 0,
     minHeight: 54,
     padding: "6px 2px 7px",
     borderRadius: 15,
@@ -423,12 +300,22 @@ const S: Record<string, React.CSSProperties> = {
     transition: "background 140ms ease, border-color 140ms ease, transform 120ms ease, box-shadow 140ms ease, color 140ms ease",
   },
 
+  itemPrimary: {
+    border: "1px solid rgba(125,211,252,0.20)",
+    background: "linear-gradient(135deg, rgba(56,189,248,0.18), rgba(168,85,247,0.18))",
+  },
+
   itemActive: {
     color: "#F8FBFF",
     border: "1px solid rgba(96,165,250,0.20)",
     background: "rgba(59,130,246,0.11)",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
     transform: "translateY(-0.5px)",
+  },
+
+  itemPrimaryActive: {
+    border: "1px solid rgba(125,211,252,0.34)",
+    background: "linear-gradient(135deg, rgba(56,189,248,0.28), rgba(168,85,247,0.25))",
   },
 
   iconWrap: {
@@ -442,8 +329,19 @@ const S: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
 
+  iconWrapPrimary: {
+    width: 27,
+    height: 27,
+    borderRadius: 10,
+    background: "rgba(255,255,255,0.08)",
+  },
+
   iconWrapActive: {
     background: "rgba(255,255,255,0.06)",
+  },
+
+  iconWrapPrimaryActive: {
+    background: "rgba(255,255,255,0.12)",
   },
 
   label: {
@@ -460,6 +358,10 @@ const S: Record<string, React.CSSProperties> = {
     textAlign: "center",
     whiteSpace: "nowrap",
     opacity: 0.9,
+  },
+
+  labelPrimary: {
+    fontWeight: 920,
   },
 
   labelActive: {

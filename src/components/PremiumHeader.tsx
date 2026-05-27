@@ -287,8 +287,10 @@ function getAutoTitle(pathname: string) {
   if (pathname.startsWith("/groups")) return "Grupos";
   if (pathname.startsWith("/members")) return "Miembros";
   if (pathname.startsWith("/invitations")) return "Invitaciones";
+  if (pathname.startsWith("/capture")) return "Crear plan";
+  if (pathname.startsWith("/events/new")) return "Crear plan";
   if (pathname.startsWith("/events")) return "Eventos";
-  if (pathname.startsWith("/summary")) return "Resumen";
+  if (pathname.startsWith("/summary")) return "Inicio";
   if (pathname.startsWith("/calendar")) return "Calendario";
   if (pathname.startsWith("/settings")) return "Ajustes";
   return "Calendario";
@@ -301,11 +303,17 @@ function getAutoSubtitle(pathname: string) {
   if (pathname.startsWith("/invitations")) {
     return "Gestiona invitaciones pendientes y accesos al espacio compartido.";
   }
+  if (pathname.startsWith("/capture")) {
+    return "Escribe un plan rápido y conviértelo en algo claro.";
+  }
+  if (pathname.startsWith("/events/new")) {
+    return "Define los detalles del plan antes de guardarlo.";
+  }
   if (pathname.startsWith("/events")) {
-    return "Revisa y ordena tus eventos sin perder contexto.";
+    return "Revisa y ordena tus planes sin perder contexto.";
   }
   if (pathname.startsWith("/summary")) {
-    return "Lo importante de tu tiempo compartido.";
+    return "Lo importante de tus planes compartidos.";
   }
   if (pathname.startsWith("/calendar")) {
     return "Visualiza tu tiempo y detecta choques.";
@@ -647,7 +655,7 @@ const cleaned = normalizeGroupLabel(
 
   const navItems = [
     {
-      label: "Resumen",
+      label: "Inicio",
       path: "/summary",
       active: pathname.startsWith("/summary"),
     },
@@ -657,30 +665,19 @@ const cleaned = normalizeGroupLabel(
       active: pathname.startsWith("/calendar"),
     },
     {
-      label: "Eventos",
-      path: "/events",
-      active: pathname.startsWith("/events"),
+      label: "Crear plan",
+      path: "/capture",
+      active: pathname.startsWith("/capture") || pathname.startsWith("/events/new"),
     },
     {
       label: "Conflictos",
       path: "/conflicts/detected",
       active: pathname.startsWith("/conflicts"),
     },
-    { label: "Panel", path: "/panel", active: pathname.startsWith("/panel") },
     {
       label: "Grupos",
       path: "/groups",
       active: pathname.startsWith("/groups"),
-    },
-    {
-      label: "Miembros",
-      path: "/members",
-      active: pathname.startsWith("/members"),
-    },
-    {
-      label: "Invitaciones",
-      path: "/invitations",
-      active: pathname.startsWith("/invitations"),
     },
   ];
 
@@ -789,7 +786,7 @@ const cleaned = normalizeGroupLabel(
                   style={styles.primaryButton}
                   onClick={onNewEvent}
                 >
-                  + Evento
+                  + Plan
                 </button>
               )}
             </div>
@@ -889,7 +886,7 @@ const cleaned = normalizeGroupLabel(
                     style={styles.primaryButton}
                     onClick={onNewEvent}
                   >
-                    + Evento
+                    + Plan
                   </button>
                 )}
               </div>
