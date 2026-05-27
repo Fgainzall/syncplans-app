@@ -1127,6 +1127,7 @@ function NewEventDetailsInner() {
   );
   const [learnedPlaceNotice, setLearnedPlaceNotice] =
     useState<LearnedPlaceNotice | null>(null);
+  const [manualLocationOverride, setManualLocationOverride] = useState(false);
   const [travelMode, setTravelMode] = useState<UiTravelMode>("driving");
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
   const [isLoadingEta, setIsLoadingEta] = useState(false);
@@ -1303,6 +1304,7 @@ function NewEventDetailsInner() {
   }, [originLatParam, originLngParam]);
   useEffect(() => {
     if (isEditing) return;
+    if (manualLocationOverride) return;
 
     const incoming = String(locationQueryParam ?? "").trim();
     const learnedLabel = String(locationLabelParam ?? "").trim();
@@ -1370,11 +1372,13 @@ function NewEventDetailsInner() {
     rawTextParam,
     quickCaptureTitleParam,
     isEditing,
+    manualLocationOverride,
   ]);
 
 
   useEffect(() => {
     if (isEditing) return;
+    if (manualLocationOverride) return;
     if (selectedPlace) return;
     if (locationMemoryParam === "1") return;
 
@@ -1450,6 +1454,7 @@ function NewEventDetailsInner() {
     };
   }, [
     isEditing,
+    manualLocationOverride,
     selectedPlace,
     locationMemoryParam,
     rawTextParam,
@@ -3218,6 +3223,7 @@ useEffect(() => {
       location_place_id: String(item.place_id ?? "").trim(),
     };
 
+    setManualLocationOverride(false);
     setSelectedPlace(normalized);
     setLearnedPlaceNotice(
       placeMemoryAlias
@@ -3238,6 +3244,7 @@ useEffect(() => {
   };
 
   const clearSelectedPlace = () => {
+    setManualLocationOverride(true);
     setSelectedPlace(null);
     setLearnedPlaceNotice(null);
     setLocationInput("");
@@ -3948,6 +3955,7 @@ useEffect(() => {
                   value={locationInput}
                   onChange={(e) => {
                     const next = e.target.value;
+                    setManualLocationOverride(true);
                     setLocationInput(next);
 
                     if (
