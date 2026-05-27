@@ -129,6 +129,21 @@ function formatCompactDateRange(start: Date, end: Date): string {
   return `${formatCompactDate(start)} – ${formatCompactDate(end)}`;
 }
 
+function formatPostSaveTimeRange(startIso: string, endIso: string): string {
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
+    return "Horario guardado";
+  }
+
+  if (!isSameCalendarDay(start, end)) {
+    return formatCompactDateRange(start, end);
+  }
+
+  return fmtRange(start.toISOString(), end.toISOString());
+}
+
 function roundToNextQuarterHour(d: Date) {
   const x = new Date(d);
   x.setSeconds(0, 0);
@@ -1167,6 +1182,11 @@ function NewEventDetailsInner() {
     title?: string;
     isShared?: boolean;
     isProposal?: boolean;
+    timeLabel?: string;
+    locationLabel?: string;
+    groupLabel?: string;
+    kindLabel?: string;
+    statusLabel?: string;
   }>(null);
   const [sharingPostSave, setSharingPostSave] = useState(false);
   const saveInFlightRef = useRef(false);
@@ -3142,12 +3162,32 @@ useEffect(() => {
     );
     setPostSaveShareUrl(null);
     setPostSaveFingerprint(currentPostSaveFingerprint);
+    const savedIsShared = effectiveType === "group";
+    const savedGroupLabel = savedIsShared
+      ? selectedGroup?.name || "Grupo compartido"
+      : "Solo tú";
+    const savedLocationLabel =
+      payload.location_label || payload.location_address || null;
+
     setPostSaveActions({
       visible: true,
       eventId: savedEventId ?? undefined,
       title: payload.title,
-      isShared: effectiveType === "group",
+      isShared: savedIsShared,
       isProposal: isSharedProposal,
+      timeLabel: formatPostSaveTimeRange(payload.startIso, payload.endIso),
+      locationLabel: savedLocationLabel ?? undefined,
+      groupLabel: savedGroupLabel,
+      kindLabel: isSharedProposal
+        ? "Propuesta compartida"
+        : savedIsShared
+          ? "Plan compartido"
+          : "Plan personal",
+      statusLabel: options?.keepBoth
+        ? "Guardado manteniendo ambos planes"
+        : isEditing
+          ? "Cambios guardados"
+          : "Plan guardado",
     });
   };
 
@@ -4657,6 +4697,52 @@ useEffect(() => {
             </div>
           )}
           {postSaveActions?.visible ? (
+            <div style={styles.postSaveSummaryCard}>
+              <div style={styles.postSaveEyebrow}>
+                {postSaveActions.statusLabel || "Plan guardado"}
+              </div>
+              <div style={styles.postSaveTitle}>Tu plan quedó guardado.</div>
+              <div style={styles.postSavePlanTitle}>
+                {postSaveActions.title || "Plan sin título"}
+              </div>
+
+              <div style={styles.postSaveGrid}>
+                <div style={styles.postSaveDetail}>
+                  <span style={styles.postSaveDetailLabel}>Cuándo</span>
+                  <strong style={styles.postSaveDetailValue}>
+                    {postSaveActions.timeLabel || "Horario guardado"}
+                  </strong>
+                </div>
+                <div style={styles.postSaveDetail}>
+                  <span style={styles.postSaveDetailLabel}>Tipo</span>
+                  <strong style={styles.postSaveDetailValue}>
+                    {postSaveActions.kindLabel ||
+                      (postSaveActions.isShared ? "Plan compartido" : "Plan personal")}
+                  </strong>
+                </div>
+                <div style={styles.postSaveDetail}>
+                  <span style={styles.postSaveDetailLabel}>Con quién</span>
+                  <strong style={styles.postSaveDetailValue}>
+                    {postSaveActions.groupLabel ||
+                      (postSaveActions.isShared ? "Grupo compartido" : "Solo tú")}
+                  </strong>
+                </div>
+                <div style={styles.postSaveDetail}>
+                  <span style={styles.postSaveDetailLabel}>Dónde</span>
+                  <strong style={styles.postSaveDetailValue}>
+                    {postSaveActions.locationLabel || "Sin ubicación"}
+                  </strong>
+                </div>
+              </div>
+
+              <div style={styles.postSaveHint}>
+                Ahora puedes verlo en calendario, compartirlo o crear otro plan sin
+                perder el contexto.
+              </div>
+            </div>
+          ) : null}
+
+          {postSaveActions?.visible ? (
             <PostSaveActionsCard
               visible={postSaveActions.visible}
               isProposal={postSaveActions.isProposal}
@@ -5347,6 +5433,68 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.04)",
     fontSize: 12,
     fontWeight: 850,
+  },
+  postSaveSummaryCard: {
+    marginTop: 14,
+    borderRadius: 20,
+    border: "1px solid rgba(52,211,153,0.24)",
+    background:
+      "linear-gradient(135deg, rgba(6,78,59,0.32), rgba(15,23,42,0.74))",
+    boxShadow: "0 22px 70px rgba(0,0,0,0.28)",
+    padding: 16,
+    display: "grid",
+    gap: 12,
+  },
+  postSaveEyebrow: {
+    alignSelf: "flex-start",
+    fontSize: 11,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "rgba(167,243,208,0.92)",
+    fontWeight: 950,
+  },
+  postSaveTitle: {
+    fontSize: 21,
+    fontWeight: 950,
+    letterSpacing: "-0.04em",
+    color: "rgba(236,253,245,0.98)",
+    lineHeight: 1.15,
+  },
+  postSavePlanTitle: {
+    fontSize: 15,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.95)",
+    lineHeight: 1.35,
+  },
+  postSaveGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+    gap: 10,
+  },
+  postSaveDetail: {
+    borderRadius: 15,
+    border: "1px solid rgba(255,255,255,0.09)",
+    background: "rgba(255,255,255,0.045)",
+    padding: "10px 11px",
+    display: "grid",
+    gap: 5,
+    minWidth: 0,
+  },
+  postSaveDetailLabel: {
+    fontSize: 11,
+    color: "rgba(226,232,240,0.66)",
+    fontWeight: 850,
+  },
+  postSaveDetailValue: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.94)",
+    lineHeight: 1.3,
+    overflowWrap: "anywhere",
+  },
+  postSaveHint: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(209,250,229,0.82)",
   },
   errorBox: {
     marginTop: 14,
