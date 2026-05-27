@@ -426,6 +426,19 @@ function getContextualPlaceDecision(
   rawText: string,
   locationQuery: string | null | undefined,
 ): ContextualPlaceDecision | null {
+  const alias = buildPlaceMemoryAlias({
+    locationInput: String(locationQuery || ""),
+    rawText: String(rawText || ""),
+  });
+
+  if (alias) {
+    return {
+      label: alias,
+      cleanedQuery: alias,
+      note: `Contexto: ${alias}.`,
+    };
+  }
+
   const cleanedQuery = cleanContextualPlaceQuery(String(locationQuery || ""));
   if (!cleanedQuery) return null;
 
@@ -895,8 +908,78 @@ function detailsTextSuggestsSharedPlan(value: string | null | undefined) {
     text.includes(" amigas") ||
     text.includes(" los del") ||
     text.includes(" las del") ||
-    text.includes(" grupo")
+    text.includes(" grupo") ||
+    /\b(en\s+)?(la\s+|el\s+)?casa\s+de\s+[a-zñ]/.test(text) ||
+    /\b(en\s+)?(el\s+)?(depa|departamento)\s+de\s+[a-zñ]/.test(text)
   );
+}
+
+function extractPeopleCuesForGroup(value: string | null | undefined): string[] {
+  const raw = String(value || "").trim();
+  if (!raw) return [];
+
+  const cues = new Set<string>();
+  const patterns = [
+    /\bcon\s+([^.;:!?]+?)(?=\s+(?:a\s+las|a\s+la|al|alas|hoy|mañana|manana|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo|en\s+|por\s+|donde\s+)\b|[.;:!?]|$)/gi,
+    /\ben\s+(?:la\s+|el\s+)?casa\s+de\s+([^.;:!?]+?)(?=\s+(?:a\s+las|a\s+la|al|alas|hoy|mañana|manana|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)\b|[.;:!?]|$)/gi,
+    /\ben\s+(?:el\s+)?(?:depa|departamento)\s+de\s+([^.;:!?]+?)(?=\s+(?:a\s+las|a\s+la|al|alas|hoy|mañana|manana|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)\b|[.;:!?]|$)/gi,
+  ];
+
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(raw)) !== null) {
+      const cleaned = cleanContextualPlaceQuery(String(match[1] || ""))
+        .replace(/\b(a\s+las|a\s+la|al|alas)\b.*$/i, "")
+        .replace(/\b(hoy|mañana|manana|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)\b.*$/i, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const normalized = normalizeContextText(cleaned);
+      if (normalized && normalized.length >= 3) cues.add(normalized);
+    }
+  }
+
+  return Array.from(cues);
+}
+
+function pickQuickCaptureDefaultGroupId(input: {
+  groups: DbGroup[];
+  activeGroupId: string | null;
+  rawText: string | null | undefined;
+  locationQuery: string | null | undefined;
+}): string {
+  const groups = Array.isArray(input.groups) ? input.groups : [];
+  if (!groups.length) return "";
+
+  const combinedText = `${input.rawText || ""} ${input.locationQuery || ""}`.trim();
+  const normalizedText = normalizeIntentText(combinedText);
+  const peopleCues = extractPeopleCuesForGroup(combinedText);
+
+  if (normalizedText.includes("familia")) {
+    const familyGroup = groups.find((group) => normalizeDbGroupType(group.type) === "family");
+    if (familyGroup?.id) return familyGroup.id;
+  }
+
+  for (const cue of peopleCues) {
+    const directNameMatch = groups.find((group) => {
+      const name = normalizeIntentText(group.name || "");
+      return name && (name.includes(cue) || cue.includes(name));
+    });
+    if (directNameMatch?.id) return directNameMatch.id;
+  }
+
+  const pairGroups = groups.filter((group) => normalizeDbGroupType(group.type) === "pair");
+  if (peopleCues.length > 0 && pairGroups.length === 1) {
+    return pairGroups[0]?.id || "";
+  }
+
+  if (input.activeGroupId) {
+    const active = groups.find((group) => group.id === input.activeGroupId);
+    if (active?.id && normalizeDbGroupType(active.type) === "pair" && peopleCues.length > 0) {
+      return active.id;
+    }
+  }
+
+  return "";
 }
 
 function detailsTextSuggestsLocationNeeded(value: string | null | undefined) {
@@ -1297,8 +1380,13 @@ function NewEventDetailsInner() {
 
     const raw = String(rawTextParam || quickCaptureTitleParam || title || "").trim();
     const locationQuery = String(locationQueryParam || locationInput || "").trim();
+    const aliasForMemory = buildPlaceMemoryAlias({
+      locationInput: locationQuery,
+      rawText: raw,
+    });
+    const memoryLocationQuery = aliasForMemory || locationQuery;
 
-    const contextualPlace = getContextualPlaceDecision(raw, locationQuery);
+    const contextualPlace = getContextualPlaceDecision(raw, memoryLocationQuery);
     if (contextualPlace) {
       setNotes((current) =>
         mergeCaptureNotesWithContext(current, contextualPlace.note),
@@ -1317,7 +1405,7 @@ function NewEventDetailsInner() {
         try {
           const learnedPlace = await getLearnedPlaceMatchForInput({
             rawText: raw,
-            locationQuery,
+            locationQuery: memoryLocationQuery,
             daysBack: 365,
             futureDays: 365,
           });
@@ -1331,16 +1419,18 @@ function NewEventDetailsInner() {
             source: "history",
           });
 
+          const visibleAlias = aliasForMemory || learnedPlace.alias || learnedPlace.locationLabel;
+
           setLocationInput((current) =>
-            current.trim() && current.trim() !== locationQuery
+            current.trim() && current.trim() !== locationQuery && current.trim() !== memoryLocationQuery
               ? current
-              : learnedPlace.locationLabel,
+              : visibleAlias,
           );
           setSelectedPlace((current) =>
             current
               ? current
               : {
-                  location_label: learnedPlace.locationLabel,
+                  location_label: visibleAlias,
                   location_address: learnedPlace.locationAddress,
                   location_lat: learnedPlace.locationLat,
                   location_lng: learnedPlace.locationLng,
@@ -1598,9 +1688,20 @@ function NewEventDetailsInner() {
           setSharedGroupDetectionState("none");
         }
 
+        const smartDefaultGroupId =
+          !hasExplicitGroupParam && typeParam === "group"
+            ? pickQuickCaptureDefaultGroupId({
+                groups: unique,
+                activeGroupId: gid,
+                rawText: rawTextParam || quickCaptureTitleParam || "",
+                locationQuery: locationQueryParam || "",
+              })
+            : "";
+
         const fallbackGroupId = hasExplicitGroupParam
           ? preferredGroupId
           : preferredGroupId ||
+            smartDefaultGroupId ||
             gid ||
             (unique && unique.length ? unique[0].id : "");
 

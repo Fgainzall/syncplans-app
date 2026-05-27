@@ -191,7 +191,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     () => pickProposalEventId(searchParams),
     [searchParams]
   );
-  const isSharedIntent = intent === "shared";
+  const isExplicitSharedIntent = intent === "shared";
 
   const [draft, setDraft] = useState(incomingText);
   const [clipboardNotice, setClipboardNotice] = useState("");
@@ -199,6 +199,15 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     "idle" | "reading" | "success" | "blocked"
   >("idle");
   const [isSavingLater, setIsSavingLater] = useState(false);
+
+  const parsed = useMemo(() => parseQuickCapture(draft.trim()), [draft]);
+  const inferredGroupPlanIntent =
+    parsed.participants.length > 0 ||
+    parsed.signals.mentionsPeople ||
+    parsed.signals.mentionsCouple ||
+    parsed.locationSource === "house_of";
+  const shouldCreateGroupPlan = isExplicitSharedIntent || inferredGroupPlanIntent;
+  const isSharedIntent = isExplicitSharedIntent;
 
   useEffect(() => {
     setDraft(incomingText);
@@ -210,7 +219,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       metadata: {
         screen: "capture",
         source,
-        intent: isSharedIntent ? "shared" : "personal",
+        intent: shouldCreateGroupPlan ? "shared" : "personal",
         has_prefill: Boolean(incomingText.trim()),
       },
     });
@@ -220,11 +229,11 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       metadata: {
         screen: "capture",
         source,
-        intent: isSharedIntent ? "shared" : "personal",
+        intent: shouldCreateGroupPlan ? "shared" : "personal",
         has_prefill: Boolean(incomingText.trim()),
       },
     });
-  }, [incomingText, isSharedIntent, source]);
+  }, [incomingText, shouldCreateGroupPlan, source]);
 
   useEffect(() => {
     if (!inputRef.current) return;
@@ -265,8 +274,6 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
         );
       });
   }, [incomingText, shouldReadClipboard]);
-
-  const parsed = useMemo(() => parseQuickCapture(draft.trim()), [draft]);
 
   const title = parsed.title?.trim() || "";
   const normalizedTitle = normalizeTitle(title);
@@ -360,7 +367,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     params.set("qc", "1");
     params.set("from", "capture");
     params.set("capture_source", source);
-    params.set("type", isSharedIntent ? "group" : "personal");
+    params.set("type", shouldCreateGroupPlan ? "group" : "personal");
     params.set("title", normalizedTitle);
     params.set("duration", String(durationMinutes));
     params.set("raw_text", draft.trim());
@@ -413,7 +420,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       metadata: {
         screen: "capture",
         source,
-        intent: isSharedIntent ? "shared" : "personal",
+        intent: shouldCreateGroupPlan ? "shared" : "personal",
         action: "accept",
         has_date: hasDate,
         has_notes: hasNotes,
@@ -429,7 +436,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       metadata: {
         screen: "capture",
         source,
-        intent: isSharedIntent ? "shared" : "personal",
+        intent: shouldCreateGroupPlan ? "shared" : "personal",
         action: "adjust",
         has_date: hasDate,
         has_notes: hasNotes,

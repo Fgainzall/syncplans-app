@@ -631,6 +631,16 @@ export function extractPlaceAliasCandidates(input: unknown): string[] {
     addPlaceAliasCandidate(candidates, connectorMatch[2] ?? "");
   }
 
+  const participantRegex = /\b(con|junto a)\s+([^.;:!?]+?)(?=\s+(a\s+las|a\s+la|al|alas|hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo|en|donde|por|cerca\s+de)\b|$)/gi;
+  let participantMatch: RegExpExecArray | null;
+  while ((participantMatch = participantRegex.exec(normalized)) !== null) {
+    const person = cleanupPlaceAliasFragment(participantMatch[2] ?? "");
+    if (person && person.length >= 3 && !/\d/.test(person)) {
+      addPlaceAliasCandidate(candidates, person);
+      addPlaceAliasCandidate(candidates, `casa de ${person}`);
+    }
+  }
+
   if (/^casa\s+de\s+/.test(normalized)) {
     addPlaceAliasCandidate(candidates, normalized);
   }
@@ -711,6 +721,11 @@ export function findLearnedPlaceMatch(input: {
             alias.includes(eventAlias) ||
             haystack.includes(alias),
         );
+        const housePerson = alias.replace(/^casa\s+de\s+/, "").trim();
+        const personContextMatch =
+          alias.startsWith("casa de ") &&
+          housePerson.length >= 3 &&
+          new RegExp(`\\b${housePerson.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(haystack);
 
         if (exactAlias) {
           score = Math.max(score, 100 + alias.length);
@@ -720,6 +735,9 @@ export function findLearnedPlaceMatch(input: {
           matchedAlias = partialAlias;
         } else if (haystack.includes(alias) && alias.length >= 5) {
           score = Math.max(score, 55 + alias.length);
+          matchedAlias = alias;
+        } else if (personContextMatch) {
+          score = Math.max(score, 52 + housePerson.length);
           matchedAlias = alias;
         }
       }

@@ -533,6 +533,27 @@ function extractParticipants(raw: string): string[] {
 
   const patterns = [/\bcon\s+([^.;:!?]+)/gi, /\bjunto a\s+([^.;:!?]+)/gi];
 
+  const placeOwnerPatterns = [
+    /\ben\s+(?:la\s+|el\s+)?casa\s+de\s+([^.;:!?]+)/gi,
+    /\ben\s+(?:el\s+)?(?:depa|departamento)\s+de\s+([^.;:!?]+)/gi,
+  ];
+
+  for (const pattern of placeOwnerPatterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(sourceRaw)) !== null) {
+      const chunk = stripTrailingTimeAndDate(String(match[1] ?? "").trim());
+      if (!chunk) continue;
+
+      const rawNames = splitParticipantChunk(chunk);
+      for (const name of rawNames) {
+        const key = normalizeForMatching(name);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        participants.push(name);
+      }
+    }
+  }
+
   for (const pattern of patterns) {
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(sourceRaw)) !== null) {
@@ -902,7 +923,7 @@ function inferAmbiguousSingleTimePeriod(
     return "pm";
   }
 
-  if (/\b(almuerzo|lunch|comer)\b/.test(context)) return "pm";
+  if (/\b(almuerzo|lunch|comer|comida)\b/.test(context)) return "pm";
 
   return null;
 }
@@ -923,7 +944,7 @@ function inferPeriodFromContext(
       : Math.min(normalizedText.length, 84);
   const context = normalizedText.slice(contextStart, contextEnd);
 
-  if (/\b(almuerzo|lunch|comer)\b/.test(context)) return "pm";
+  if (/\b(almuerzo|lunch|comer|comida)\b/.test(context)) return "pm";
   if (
     /\b(desayuno|brunch|temprano)\b/.test(context) ||
     /\b(por la|de la)\s+manana\b/.test(context)
