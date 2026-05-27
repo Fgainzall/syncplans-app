@@ -1253,7 +1253,6 @@ function UpcomingSection({
   getStatusBadgeForEvent,
   onOpenCalendar,
   showCreateGroupNudge,
-  onPrimaryEmptyAction,
 }: {
   booting: boolean;
   nextEvent: SummaryEvent | null;
@@ -1272,7 +1271,6 @@ function UpcomingSection({
   ) => StatusBadge | null;
   onOpenCalendar: () => void;
   showCreateGroupNudge: boolean;
-  onPrimaryEmptyAction: () => void;
 }) {
   if (booting) {
     return (
@@ -1302,22 +1300,13 @@ function UpcomingSection({
           <div style={styles.emptyTitle}>
             {showCreateGroupNudge
               ? "Aquí aparecerán tus próximos planes"
-              : "Crea el próximo plan para que la semana no dependa de memoria"}
+              : "Crea tu próximo plan desde Quick Capture abajo"}
           </div>
           <div style={styles.emptySub}>
             {showCreateGroupNudge
               ? "Cuando actives tu primer grupo o captures un plan, esta sección mostrará lo que viene sin repetir acciones."
-              : "Si metes el siguiente plan aquí, la coordinación ya no se reparte entre mensajes, recuerdos y supuestos."}
+              : "Escribe una idea abajo y SyncPlans la ordena antes de guardarla."}
           </div>
-          {!showCreateGroupNudge ? (
-            <button
-              type="button"
-              onClick={onPrimaryEmptyAction}
-              style={styles.emptyBtn}
-            >
-              Crear plan
-            </button>
-          ) : null}
         </div>
       </Card>
     );
@@ -1760,7 +1749,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const quickCaptureHeadline = useMemo(() => {
     if (!activeGroupId) return "Crear plan rápido";
     if (activeGroupType === "pair") return "Crear plan rápido";
-    if (activeGroupType === "family") return "Organizar evento rápido";
+    if (activeGroupType === "family") return "Crear plan rápido";
     return "Crear plan rápido";
   }, [activeGroupId, activeGroupType]);
 
@@ -3419,7 +3408,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                   })
                 }
                 showCreateGroupNudge={showCreateGroupNudge}
-                onPrimaryEmptyAction={primaryAction.primaryAction}
               />
 
               <SummaryQuickCaptureCard

@@ -69,7 +69,7 @@ function actionTone(
   return {
     isShared,
     contextLabel: isShared ? "Compartido" : "Personal",
-    submitLabel: isShared ? "Convertir en evento" : "Crear evento",
+    submitLabel: isShared ? "Revisar plan compartido" : "Revisar plan",
   };
 }
 
@@ -130,8 +130,8 @@ export default function SummaryQuickCaptureCard({
 
       <header style={s.header}>
         <div style={s.headerCopy}>
-          <div style={s.eyebrow}>Crear evento rápido</div>
-          <h2 style={s.title}>{headline || "Crear evento rápido"}</h2>
+          <div style={s.eyebrow}>Quick Capture</div>
+          <h2 style={s.title}>{headline || "Crear plan rápido"}</h2>
           <p style={s.subtitle}>
             {subcopy ||
               "Escribe algo como lo dirías por WhatsApp. SyncPlans lo ordena antes de guardar."}
@@ -179,7 +179,7 @@ export default function SummaryQuickCaptureCard({
               style={s.secondaryButton}
               className="spQc-secondaryButton"
             >
-              Abrir formulario completo
+              Modo completo
             </button>
           ) : null}
         </div>
