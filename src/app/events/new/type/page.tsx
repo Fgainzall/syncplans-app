@@ -37,7 +37,7 @@ const cards: Array<{
   {
     key: "family",
     title: "Familia",
-    desc: "Eventos familiares: cumpleaños, reuniones, actividades.",
+    desc: "Planes familiares: cumpleaños, reuniones, actividades.",
     badge: "Compartido",
     hint: "Sincronizado en familia",
     ring: "hover:ring-sky-300/20",
@@ -80,10 +80,10 @@ export default function EventTypePage() {
 
         <div className="mt-10 text-center">
           <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight">
-            Nuevo evento
+            Nuevo plan
           </h1>
           <p className="mt-3 text-white/70 text-lg">
-            Elige el tipo para aplicar color y sincronización.
+            Elige dónde guardar este plan para mantenerlo claro desde el inicio.
           </p>
         </div>
 
@@ -132,7 +132,7 @@ export default function EventTypePage() {
 
         {/* Footer hint */}
         <div className="mt-8 text-center text-sm text-white/55">
-          Tip: luego verás alertas si un plan se cruza con Pareja/Familia ⭐
+          Tip: luego verás alertas si un plan se cruza con otro y podrás decidir qué hacer ⭐
         </div>
       </div>
     </main>

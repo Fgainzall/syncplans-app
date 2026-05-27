@@ -267,9 +267,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   const parsingStatus = useMemo(() => {
     if (isDraftEmpty) {
       return {
-        label: "Escribe una idea para comenzar",
+        label: "Escribe tu plan para comenzar",
         tone: "neutral" as const,
-        help: "Cuando escribas algo, te mostramos una vista previa clara antes de crear.",
+        help: "Cuando escribas algo, te mostramos una vista previa clara antes de guardarlo.",
       };
     }
 
@@ -298,9 +298,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     }
 
     return {
-      label: "Parsing claro y listo para continuar",
+      label: "Plan claro y listo para continuar",
       tone: "success" as const,
-      help: "Revisa los datos detectados y confirma para pasar al detalle final.",
+      help: "Revisa los datos detectados y confirma para pasar al detalle final del plan.",
     };
   }, [hasDate, isDraftEmpty, isSharedIntent, normalizedTitle]);
 
@@ -517,7 +517,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               textTransform: "uppercase",
             }}
           >
-            {isManualEntry ? "Crear plan" : "Capture"}
+            {isManualEntry ? "Crear plan" : "Quick Capture"}
           </span>
 
           <span
@@ -974,7 +974,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               <MiniStep
                 text={
                   canContinue
-                    ? "La dejé lista para crear"
+                    ? "La dejé lista para revisar"
                     : "Completa el plan para habilitar continuar"
                 }
               />

@@ -839,7 +839,7 @@ function humanizeActionError(err: unknown, fallback = "Intenta nuevamente.") {
 
 function safeTitle(value?: string | null) {
   const v = String(value ?? "").trim();
-  return v || "Evento sin título";
+  return v || "Plan sin título";
 }
 
 function normalizeFreeText(value: string) {
@@ -1713,7 +1713,7 @@ function NewEventDetailsInner() {
         if (!alive) return;
 
         setToast({
-          title: "No se pudo cargar el evento",
+          title: "No se pudo cargar el plan",
           subtitle: humanizeActionError(err, "Intenta nuevamente."),
         });
       } finally {
@@ -2117,8 +2117,8 @@ useEffect(() => {
     if (effectiveType === "group") {
       return {
         label: lockedToActiveGroup
-          ? `Evento compartido (${meta.label})`
-          : "Evento de grupo",
+          ? `Plan compartido (${meta.label})`
+          : "Plan de grupo",
         border:
           groupType === "family"
             ? "rgba(96,165,250,0.28)"
@@ -2134,7 +2134,7 @@ useEffect(() => {
       };
     }
     return {
-      label: "Evento personal",
+      label: "Plan personal",
       border: "rgba(250,204,21,0.28)",
       soft: "rgba(250,204,21,0.14)",
     };
@@ -2276,7 +2276,7 @@ useEffect(() => {
 
     const chips: string[] = [];
     chips.push(effectiveType === "group" ? "Compartido" : "Personal");
-    if (isMultiDayEvent) chips.push("Evento de varios días");
+    if (isMultiDayEvent) chips.push("Plan de varios días");
     if (durationLabel) chips.push(`Duración: ${durationLabel}`);
     if (dateRangeLabel) chips.push(dateRangeLabel);
     if (hasLocation) chips.push("Con ubicación");
@@ -2567,7 +2567,7 @@ useEffect(() => {
       if (selectedGroupId && !selectedGroup) e.push("Grupo inválido.");
     }
 
-    if (bootingEvent) e.push("Cargando evento…");
+    if (bootingEvent) e.push("Cargando plan…");
 
     return e;
   }, [
@@ -2662,11 +2662,11 @@ useEffect(() => {
             ? "Plan compartido actualizado ✅"
             : "Plan compartido creado ✅"
           : isEditing
-            ? "Evento personal actualizado ✅"
-            : "Evento personal creado ✅",
+            ? "Plan personal actualizado ✅"
+            : "Plan personal creado ✅",
         subtitle: isSharedEvent
           ? "Conservamos ambos planes para que puedas decidirlo después con más calma."
-          : "Conservamos ambos eventos para que puedas decidirlo después con más calma.",
+          : "Conservamos ambos planes para que puedas decidirlo después con más calma.",
       };
     }
 
@@ -2691,8 +2691,8 @@ useEffect(() => {
 
     return {
       title: isEditing
-        ? "Evento personal actualizado ✅"
-        : "Evento personal creado ✅",
+        ? "Plan personal actualizado ✅"
+        : "Plan personal creado ✅",
       subtitle: isEditing
         ? "Tus cambios ya quedaron guardados."
         : "Ya quedó listo en tu calendario.",
@@ -2808,12 +2808,12 @@ useEffect(() => {
     for (const row of rows) {
       const decisionLabel =
         row.final_action === "fallback_keep_both"
-          ? `Se intentó resolver el conflicto con “${row.affected_event_title ?? "evento"}”, pero no se pudo eliminar. SyncPlans mantuvo ambos eventos automáticamente.`
+          ? `Se intentó resolver el conflicto con “${row.affected_event_title ?? "plan"}”, pero no se pudo eliminar. SyncPlans mantuvo ambos planes automáticamente.`
           : row.final_action === "replace_with_new"
-            ? `Se reemplazó “${row.affected_event_title ?? "evento"}” por “${row.kept_event_title ?? "el nuevo evento"}”.`
+            ? `Se reemplazó “${row.affected_event_title ?? "plan"}” por “${row.kept_event_title ?? "el nuevo plan"}”.`
             : row.final_action === "keep_existing"
-              ? `Se conservó “${row.affected_event_title ?? "el evento existente"}”.`
-              : `Se tomó una decisión sobre un conflicto que involucraba “${row.affected_event_title ?? "un evento"}”.`;
+              ? `Se conservó “${row.affected_event_title ?? "el plan existente"}”.`
+              : `Se tomó una decisión sobre un conflicto que involucraba “${row.affected_event_title ?? "un plan"}”.`;
 
       if (row.final_action === "fallback_keep_both") {
         await createConflictAutoAdjustedNotification({
@@ -3145,7 +3145,7 @@ useEffect(() => {
     try {
       const savedEventId = await persistEvent(payload);
       if (!savedEventId) {
-        throw new Error("No se pudo obtener el id del evento guardado.");
+        throw new Error("No se pudo obtener el id del plan guardado.");
       }
 
       if (options?.keepBothRedirect) {
@@ -3276,7 +3276,7 @@ useEffect(() => {
           return {
             id: c.id,
             existingId: String(counterpart.otherId),
-            title: otherEvent?.title ?? "Evento existente",
+            title: otherEvent?.title ?? "Plan existente",
             groupLabel: gm.label,
             range: otherEvent
               ? fmtRange(otherEvent.start, otherEvent.end)
@@ -3368,14 +3368,14 @@ useEffect(() => {
             savedEventId: null,
             blockedIds: [],
             reason:
-              "El usuario decidió conservar los eventos existentes y no guardar el nuevo evento.",
+              "El usuario decidió conservar los planes existentes y no guardar el nuevo plan.",
           });
         }
 
         clearPreflightState();
         setToast({
           title: "No se guardó",
-          subtitle: "Conservamos tus eventos existentes.",
+          subtitle: "Conservamos tus planes existentes.",
         });
         return;
       }
@@ -3384,7 +3384,7 @@ useEffect(() => {
         clearPreflightState();
         setToast({
           title: "Ups",
-          subtitle: "No encontré el evento pendiente. Intenta otra vez.",
+          subtitle: "No encontré el plan pendiente. Intenta otra vez.",
         });
         return;
       }
@@ -3465,7 +3465,7 @@ useEffect(() => {
         setToast({
           title: "Aplicado con ajuste automático",
           subtitle:
-            "No pudimos reemplazar todos los eventos por permisos. Mantuvimos ambos para evitar inconsistencias.",
+            "No pudimos reemplazar todos los planes por permisos. Mantuvimos ambos para evitar inconsistencias.",
         });
         window.setTimeout(() => setToast(null), 3200);
 
@@ -3479,7 +3479,7 @@ useEffect(() => {
           savedEventId: savedEventId ?? null,
           blockedIds,
           reason:
-            "No se pudieron reemplazar todos los eventos por permisos. Para no romper nada, SyncPlans mantuvo ambos.",
+            "No se pudieron reemplazar todos los planes por permisos. Para no romper nada, SyncPlans mantuvo ambos.",
         });
 
         try {
@@ -3551,7 +3551,7 @@ useEffect(() => {
       if (!postSaveActions?.eventId) {
         setToast({
           title: "Todavía no se puede compartir",
-          subtitle: "Aún no encontré el evento que acabas de guardar.",
+          subtitle: "Aún no encontré el plan que acabas de guardar.",
         });
         return;
       }
@@ -3577,7 +3577,7 @@ useEffect(() => {
       if (navigator.share) {
         try {
           await navigator.share({
-            title: postSaveActions.title || "Evento compartido",
+            title: postSaveActions.title || "Plan compartido",
             text: postSaveActions.title
               ? `Te comparto este plan: ${postSaveActions.title}`
               : "Te comparto este plan.",
@@ -3661,7 +3661,7 @@ useEffect(() => {
 
       <ConflictPreflightModal
         open={preflightOpen}
-        title={title.trim() || (isEditing ? "Editar evento" : "Nuevo evento")}
+        title={title.trim() || (isEditing ? "Editar plan" : "Nuevo plan")}
         items={preflightItems}
         defaultChoice={preflightDefaultChoice}
         onClose={() => {
@@ -3952,18 +3952,18 @@ useEffect(() => {
                 <div style={styles.travelMetaCard}>
                   <div style={styles.travelMetaRow}>
                     <span style={styles.travelMetaLabel}>Smart Mobility</span>
-                    <span style={styles.travelMetaValue}>Pausado para este evento</span>
+                    <span style={styles.travelMetaValue}>Pausado para este plan</span>
                   </div>
 
                   <div style={styles.travelMetaRow}>
                     <span style={styles.travelMetaLabel}>Ubicación usada</span>
                     <span style={styles.travelMetaValue}>
-                      {selectedPlace.location_label || locationInput || "Ubicación del evento"}
+                      {selectedPlace.location_label || locationInput || "Ubicación del plan"}
                     </span>
                   </div>
 
                   <div style={styles.locationHint}>
-                    Este es un evento de varios días. Usaremos la ubicación como contexto, pero no calcularemos una salida diaria. Si necesitas una ruta puntual, crea una llegada o traslado específico.
+                    Este es un plan de varios días. Usaremos la ubicación como contexto, pero no calcularemos una salida diaria. Si necesitas una ruta puntual, crea una llegada o traslado específico.
                   </div>
                 </div>
               ) : (
@@ -4112,7 +4112,7 @@ useEffect(() => {
                       background: "rgba(56, 189, 248, 0.10)",
                     }}
                   >
-                    Evento de varios días
+                    Plan de varios días
                   </span>
                 ) : null}
                 {durationLabel ? (
@@ -4175,7 +4175,7 @@ useEffect(() => {
 
           <div style={styles.secondaryCard}>
             <div style={styles.row}>
-              <div style={styles.label}>Tipo de evento</div>
+              <div style={styles.label}>Tipo de plan</div>
               <div style={styles.chips}>
                 <button
                   type="button"

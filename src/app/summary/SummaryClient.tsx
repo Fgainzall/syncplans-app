@@ -1832,7 +1832,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
     if (interpretedDate && isMultiDay && parsedEndDate) {
       facts.push(
-        `Evento de varios días: ${formatCaptureDateRangeLabel(interpretedDate, parsedEndDate)}`,
+        `Plan de varios días: ${formatCaptureDateRangeLabel(interpretedDate, parsedEndDate)}`,
       );
       if (hasTime) {
         facts.push(`Hora de inicio: ${fmtTime(interpretedDate)}`);
@@ -1934,7 +1934,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             : "sin horario cerrado";
     const placeLabel = effectiveLocation ? ` · ${effectiveLocation}` : "";
     const naturalSummary = isMultiDay
-      ? `Evento de varios días · ${whenLabel}${placeLabel}`
+      ? `Plan de varios días · ${whenLabel}${placeLabel}`
       : `Quieres crear “${title}” ${whenLabel}${effectiveLocation ? ` en ${effectiveLocation}` : ""}.`;
 
     let recommendation = isMultiDay
@@ -2440,7 +2440,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
         return {
           id: String(event.id),
-          title: String(event.title ?? "Evento"),
+          title: String(event.title ?? "Plan"),
           start,
           end,
           groupType: normalizeSummaryGroupType(
