@@ -28,7 +28,9 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-    style={
+      suppressHydrationWarning
+      className="sp-root-dark"
+      style={
   {
     background: "#0B0F19",
     "--sp-bottom-nav-height": "74px",
@@ -42,6 +44,15 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         <meta name="theme-color" content="#0B0F19" />
+        <meta name="color-scheme" content="dark" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <style
+          dangerouslySetInnerHTML={{
+            __html:
+              "html,body{margin:0;min-height:100%;background:#050816!important;color:#E5E7EB;color-scheme:dark;}body{background:#050816!important;}#syncplans-boot-bg{position:fixed;inset:0;z-index:-1;background:radial-gradient(900px 420px at 20% -10%,rgba(56,189,248,.18),transparent 60%),radial-gradient(700px 380px at 90% 10%,rgba(124,58,237,.14),transparent 60%),#050816;}",
+          }}
+        />
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover"
@@ -56,6 +67,7 @@ export default function RootLayout({
           margin: 0,
         }}
       >
+        <div id="syncplans-boot-bg" aria-hidden="true" />
         <SWRegister />
         <AppLaunchSplash />
         <ToastProvider>

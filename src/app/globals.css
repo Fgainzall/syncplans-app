@@ -1,5 +1,29 @@
 @import "tailwindcss";
 
+/* Prevent iOS/PWA white flash before React hydrates. */
+html {
+  background: #050816;
+  color-scheme: dark;
+}
+
+html.sp-root-dark,
+html.sp-root-dark body {
+  background-color: #050816;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 420px at 20% -10%, rgba(56, 189, 248, 0.18), transparent 60%),
+    radial-gradient(700px 380px at 90% 10%, rgba(124, 58, 237, 0.14), transparent 60%),
+    #050816;
+}
+
+
 /* 🌙 SyncPlans Soft Dark Theme */
 :root {
   --bg-main: #0b1020;
