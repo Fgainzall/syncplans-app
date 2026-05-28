@@ -269,14 +269,13 @@ const styles: Record<string, CSSProperties> = {
   toastSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
 
   topRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    alignItems: "stretch",
+    gap: 12,
     marginBottom: 14,
-    flexWrap: "wrap",
   },
-  topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
+  topActions: { display: "none" },
 
   hero: {
     padding: "18px 16px",

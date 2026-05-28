@@ -1515,6 +1515,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [pendingCaptureCount, setPendingCaptureCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [confirmingEventIds, setConfirmingEventIds] = useState<Set<string>>(() => new Set());
+  const [optimisticConfirmedEventIds, setOptimisticConfirmedEventIds] = useState<Set<string>>(() => new Set());
   const [profile, setProfile] = useState<Profile | null>(null);
   const [dismissedPremiumNudge] = useState(false);
   const [summaryNow, setSummaryNow] = useState(() => new Date());
@@ -2522,6 +2523,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       const key = String(eventId ?? "").trim();
       if (!key) return null;
 
+      if (optimisticConfirmedEventIds.has(key)) {
+        return "Confirmaste este plan recién.";
+      }
+
       const row = proposalResponsesMap[key];
       if (!row) return null;
 
@@ -2536,7 +2541,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         time,
       });
     },
-    [proposalProfilesMap, proposalResponsesMap],
+    [optimisticConfirmedEventIds, proposalProfilesMap, proposalResponsesMap],
   );
 
   const conflictEventIds = useMemo(() => {
@@ -3419,6 +3424,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         next.add(eventId);
         return next;
       });
+      setOptimisticConfirmedEventIds((prev) => {
+        const next = new Set(prev);
+        next.add(eventId);
+        return next;
+      });
 
       try {
         await upsertProposalResponse({
@@ -3436,8 +3446,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("sp:notifications-changed"));
+          window.dispatchEvent(new Event("sp:events-changed"));
         }
       } catch {
+        setOptimisticConfirmedEventIds((prev) => {
+          const next = new Set(prev);
+          next.delete(eventId);
+          return next;
+        });
         showToast(
           "No pudimos confirmar el plan",
           "Intenta nuevamente o abre el detalle del plan.",
@@ -3460,6 +3476,17 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       const event =
         visibleEvents.find((item) => String(item.id ?? "") === key) ?? null;
+
+      if (optimisticConfirmedEventIds.has(key)) {
+        return {
+          label: "Confirmado",
+          style: {
+            border: "1px solid rgba(52,211,153,0.28)",
+            background: "rgba(16,185,129,0.18)",
+            color: "rgba(209,250,229,0.98)",
+          },
+        };
+      }
 
       const status = getUnifiedEventStatus({
         eventId,
@@ -3488,7 +3515,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         style: statusUi.badgeStyle,
       };
     },
-    [conflictEventIds, currentUserId, proposalResponseGroupsMap, visibleEvents],
+    [conflictEventIds, currentUserId, optimisticConfirmedEventIds, proposalResponseGroupsMap, visibleEvents],
   );
 
   const compactSummaryMobile = isMobile;

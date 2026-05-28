@@ -1031,9 +1031,9 @@ const drawer: React.CSSProperties = {
 };
 
 const drawerDesktop: React.CSSProperties = {
-  width: "min(460px, 92vw)",
+  width: "min(620px, 96vw)",
   height: "100%",
-  padding: 20,
+  padding: "24px 24px 22px",
 };
 
 const drawerMobile: React.CSSProperties = {
@@ -1048,26 +1048,29 @@ const drawerMobile: React.CSSProperties = {
 const header: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 16,
+  gap: 18,
   alignItems: "flex-start",
-  flexWrap: "wrap",
+  flexWrap: "nowrap",
 };
 
 const headerTopActions: React.CSSProperties = {
   display: "flex",
   gap: 10,
   alignItems: "center",
+  justifyContent: "flex-end",
+  flexWrap: "wrap",
   flexShrink: 0,
   marginLeft: "auto",
 };
 
 const title: React.CSSProperties = {
-  fontSize: 28,
+  fontSize: 30,
   fontWeight: 950,
   color: "rgba(248,250,252,0.98)",
   letterSpacing: "-0.03em",
-  lineHeight: 1,
-  wordBreak: "break-word",
+  lineHeight: 1.02,
+  wordBreak: "normal",
+  whiteSpace: "nowrap",
 };
 
 const sub: React.CSSProperties = {
@@ -1082,7 +1085,7 @@ const subtleCopy: React.CSSProperties = {
   fontSize: 12,
   lineHeight: 1.45,
   color: "rgba(148,163,184,0.78)",
-  maxWidth: 340,
+  maxWidth: 420,
 };
 
 const bulkActionsRow: React.CSSProperties = {
@@ -1097,14 +1100,14 @@ const bulkActionsRowMobile: React.CSSProperties = {
 };
 
 const pushHintBox: React.CSSProperties = {
-  marginTop: 12,
-  padding: "10px 12px",
-  borderRadius: 14,
-  border: "1px solid rgba(56,189,248,0.18)",
-  background: "rgba(8,47,73,0.20)",
-  color: "rgba(226,232,240,0.76)",
+  marginTop: 14,
+  padding: "12px 14px",
+  borderRadius: 16,
+  border: "1px solid rgba(56,189,248,0.24)",
+  background: "linear-gradient(135deg, rgba(8,47,73,0.30), rgba(15,23,42,0.74))",
+  color: "rgba(226,232,240,0.82)",
   fontSize: 12,
-  lineHeight: 1.45,
+  lineHeight: 1.5,
 };
 
 const body: React.CSSProperties = {
@@ -1320,10 +1323,10 @@ const iconBtn: React.CSSProperties = {
 };
 
 const emptyBox: React.CSSProperties = {
-  padding: 18,
-  borderRadius: 18,
-  border: "1px dashed rgba(148,163,184,0.48)",
-  background: "rgba(15,23,42,0.75)",
+  padding: 20,
+  borderRadius: 20,
+  border: "1px dashed rgba(148,163,184,0.42)",
+  background: "linear-gradient(180deg, rgba(15,23,42,0.86), rgba(15,23,42,0.68))",
 };
 
 const emptyTitle: React.CSSProperties = {

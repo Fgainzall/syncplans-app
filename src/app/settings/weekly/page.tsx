@@ -356,14 +356,16 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 650,
   },
   topRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    alignItems: "stretch",
+    gap: 12,
     marginBottom: 2,
-    flexWrap: "wrap",
   },
   topActions: {
+    display: "none",
+  },
+  legacyTopActions: {
     display: "flex",
     gap: 10,
     alignItems: "center",

@@ -564,8 +564,13 @@ const styles: Record<string, React.CSSProperties> = {
   toastTitle: { fontWeight: 900, fontSize: 13 },
   toastSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
   shell: { display: "grid", gap: 14 },
-  topRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" },
-  topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
+  topRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    alignItems: "stretch",
+    gap: 12,
+  },
+  topActions: { display: "none" },
   hero: {
     padding: "18px 16px",
     borderRadius: 20,

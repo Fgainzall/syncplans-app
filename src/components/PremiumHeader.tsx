@@ -1009,6 +1009,9 @@ const cleaned = normalizeGroupLabel(
 const styles: Record<string, CSSProperties> = {
   desktopWrap: {
     position: "sticky",
+    width: "100%",
+    maxWidth: "100%",
+    boxSizing: "border-box",
     top: 10,
     zIndex: 20,
     overflow: "visible",
@@ -1031,6 +1034,9 @@ const styles: Record<string, CSSProperties> = {
 },
   mobileWrap: {
     position: "sticky",
+    width: "100%",
+    maxWidth: "100%",
+    boxSizing: "border-box",
     top: 8,
     zIndex: 20,
     overflow: "visible",
