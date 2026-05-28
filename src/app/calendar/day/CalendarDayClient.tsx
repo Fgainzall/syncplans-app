@@ -23,6 +23,7 @@ import {
   groupMeta,
   computeVisibleConflicts,
   attachEvents,
+  isConflictStillRelevant,
 } from "@/lib/conflicts";
 import { getEventAudienceLabel, isGoogleEventWithExternalGuests } from "@/lib/naming";
 type Scope = "personal" | "active" | "all";
@@ -366,7 +367,9 @@ const [enabledGroups, setEnabledGroups] = useState<Record<GroupType, boolean>>({
 
   // ---------- conflictos ----------  
   const attachedConflicts = useMemo(() => {
-    const cx = computeVisibleConflicts(filteredEvents);
+    const cx = computeVisibleConflicts(filteredEvents).filter((conflict) =>
+      isConflictStillRelevant(conflict),
+    );
     return attachEvents(cx, filteredEvents);
   }, [filteredEvents]);
 

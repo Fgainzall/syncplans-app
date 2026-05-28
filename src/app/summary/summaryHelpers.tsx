@@ -4,6 +4,7 @@ import {
   computeVisibleConflicts,
   conflictKey,
   filterIgnoredConflicts,
+  isConflictStillRelevant,
   type CalendarEvent,
   type GroupType,
   type ConflictItem,
@@ -243,7 +244,7 @@ export function buildConflictAlert(
   );
 
   const pendingConflicts = visibleConflicts.filter(
-    (conflict) => !resolutionForConflict(conflict, resMap)
+    (conflict) => isConflictStillRelevant(conflict) && !resolutionForConflict(conflict, resMap)
   );
 
   if (pendingConflicts.length === 0) {

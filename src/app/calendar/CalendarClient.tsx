@@ -33,6 +33,7 @@ import {
   computeVisibleConflicts,
   conflictKey,
   filterIgnoredConflicts,
+  isConflictStillRelevant,
   groupMeta,
 } from "@/lib/conflicts";
 import {
@@ -1403,7 +1404,9 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
     const all = computeVisibleConflicts(normalized);
     const visible = filterIgnoredConflicts(all);
 
-    return visible.filter((conflict) => !resolutionForConflict(conflict, resMap));
+    return visible.filter(
+      (conflict) => isConflictStillRelevant(conflict) && !resolutionForConflict(conflict, resMap),
+    );
   }, [events, resMap]);
 
   const conflictCount = conflicts.length;

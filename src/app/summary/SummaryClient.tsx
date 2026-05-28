@@ -48,6 +48,7 @@ import {
 import {
   computeVisibleConflicts,
   filterIgnoredConflicts,
+  isConflictStillRelevant,
   type CalendarEvent,
   type GroupType,
 } from "@/lib/conflicts";
@@ -2724,7 +2725,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     const computed = filterIgnoredConflicts(
       computeVisibleConflicts(conflictEvents),
       ignoredConflictKeys,
-    ).filter((conflict) => !resolutionForConflict(conflict, resMap));
+    ).filter(
+      (conflict) => isConflictStillRelevant(conflict) && !resolutionForConflict(conflict, resMap),
+    );
 
     for (const conflict of computed) {
       next.add(String(conflict.existingEventId));

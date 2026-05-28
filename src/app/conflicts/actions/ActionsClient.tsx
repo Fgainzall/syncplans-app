@@ -24,6 +24,7 @@ import {
   attachEvents,
   conflictInvolvesEvent,
   filterIgnoredConflicts,
+  isConflictStillRelevant,
 } from "@/lib/conflicts";
 
 type ActionCalendarEvent = {
@@ -384,7 +385,9 @@ export default function ActionsClient() {
     }));
 
     const computed = computeVisibleConflicts(normalized);
-    const visible = filterIgnoredConflicts(computed, ignoredConflictKeys);
+    const visible = filterIgnoredConflicts(computed, ignoredConflictKeys).filter((conflict) =>
+      isConflictStillRelevant(conflict),
+    );
 
     return attachEvents(visible, visibleEventsForConflicts);
   }, [visibleEventsForConflicts, ignoredConflictKeys]);
@@ -860,6 +863,8 @@ kept_event_title: safeTitle(
         });
       }
 
+      window.dispatchEvent(new CustomEvent("sp:events-changed"));
+      window.dispatchEvent(new CustomEvent("sp:conflicts-changed"));
       window.dispatchEvent(new Event("focus"));
       document.dispatchEvent(new Event("visibilitychange"));
 

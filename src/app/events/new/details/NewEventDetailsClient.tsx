@@ -893,6 +893,7 @@ function emitSyncPlansRefreshSignals() {
 
   try {
     window.dispatchEvent(new CustomEvent("sp:events-changed"));
+    window.dispatchEvent(new CustomEvent("sp:conflicts-changed"));
   } catch {
     // no-op
   }

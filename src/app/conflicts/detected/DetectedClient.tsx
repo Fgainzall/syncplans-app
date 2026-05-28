@@ -279,12 +279,14 @@ export default function DetectedClient() {
 
     window.addEventListener("focus", onFocus);
     window.addEventListener("sp:events-changed", onEventsChanged as EventListener);
+    window.addEventListener("sp:conflicts-changed", onEventsChanged as EventListener);
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       alive = false;
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("sp:events-changed", onEventsChanged as EventListener);
+      window.removeEventListener("sp:conflicts-changed", onEventsChanged as EventListener);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [focusEventId, groupIdFromUrl]);

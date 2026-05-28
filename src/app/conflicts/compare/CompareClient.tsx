@@ -15,6 +15,7 @@ import {
   type ConflictItem,
   conflictInvolvesEvent,
   filterIgnoredConflicts,
+  isConflictStillRelevant,
 } from "@/lib/conflicts";
 import { normalizeGroupType } from "@/lib/naming";
 import { getConflictDecisionSnapshot } from "@/lib/decisionEngine";
@@ -303,11 +304,13 @@ export default function CompareClient() {
 
     window.addEventListener("focus", onFocus);
     window.addEventListener("sp:events-changed", refreshFromDb as EventListener);
+    window.addEventListener("sp:conflicts-changed", refreshFromDb as EventListener);
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("sp:events-changed", refreshFromDb as EventListener);
+      window.removeEventListener("sp:conflicts-changed", refreshFromDb as EventListener);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [loadScreenData]);
@@ -328,7 +331,9 @@ export default function CompareClient() {
     }));
 
     const computed = computeVisibleConflicts(normalized);
-    const visible = filterIgnoredConflicts(computed, ignoredConflictKeys);
+    const visible = filterIgnoredConflicts(computed, ignoredConflictKeys).filter((conflict) =>
+      isConflictStillRelevant(conflict),
+    );
 
     return attachEvents(visible, visibleEventsForConflicts);
   }, [visibleEventsForConflicts, ignoredConflictKeys]);
