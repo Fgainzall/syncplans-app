@@ -72,10 +72,14 @@ function isPublicPath(pathname: string) {
   // Next internals.
   if (pathname.startsWith("/_next/")) return true;
 
-  // Static assets / public files.
+  // Static assets / public files. Estos no deben pasar por auth porque en PWA/iOS
+  // forman parte del arranque visual antes de que React pinte.
   if (pathname === "/manifest.webmanifest") return true;
+  if (pathname === "/sw.js") return true;
   if (pathname.startsWith("/icons/")) return true;
   if (pathname.startsWith("/favicon")) return true;
+  if (pathname.endsWith(".svg")) return true;
+  if (pathname.endsWith(".png")) return true;
   if (pathname === "/robots.txt") return true;
   if (pathname === "/sitemap.xml") return true;
 
@@ -144,9 +148,15 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const { data } = await supabase.auth.getUser();
+  // Performance de arranque: para páginas protegidas usamos la sesión local del
+  // cookie y dejamos que Supabase/RLS valide los datos reales en cada query.
+  // Evitamos auth.getUser() aquí porque hace una validación remota y puede dejar
+  // la PWA esperando HTML con pantalla blanca, especialmente en iPhone.
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  if (!data?.user) {
+  if (!session?.user) {
     if (url.pathname.startsWith("/api/")) {
       return NextResponse.json(
         {

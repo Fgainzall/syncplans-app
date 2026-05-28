@@ -1367,14 +1367,9 @@ function SummaryBootCard() {
     <Card style={styles.summaryBootCard}>
       <div style={styles.summaryBootPulse} />
       <div style={styles.summaryBootCopy}>
-        <div style={styles.summaryBootEyebrow}>Abriendo SyncPlans</div>
-        <div style={styles.summaryBootTitle}>
-          Estamos cargando tu resumen real
-        </div>
-        <div style={styles.summaryBootSubtitle}>
-          Un momento: estamos revisando tus grupos, eventos, invitaciones y
-          conflictos antes de mostrarte el siguiente paso.
-        </div>
+        <div style={styles.summaryBootEyebrow}>SyncPlans</div>
+        <div style={styles.summaryBootTitle}>Inicio</div>
+        <div style={styles.summaryBootSubtitle}>Preparando lo esencial.</div>
       </div>
     </Card>
   );
@@ -1522,8 +1517,8 @@ function UpcomingSection({
         <div style={styles.loadingCard}>
           <div style={styles.loadingDot} />
           <div>
-            <div style={styles.loadingTitle}>Cargando…</div>
-            <div style={styles.loadingSub}>Sincronizando lo esencial</div>
+            <div style={styles.loadingTitle}>Inicio</div>
+            <div style={styles.loadingSub}>Preparando lo esencial</div>
           </div>
         </div>
       </Card>

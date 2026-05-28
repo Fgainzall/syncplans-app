@@ -3,7 +3,6 @@ import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import { getProfilesMapByIds } from "@/lib/profilesDb";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
-import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { getMyEventsForSummary } from "@/lib/eventsDb";
 import {
   getMyProposalResponsesForEvents,
@@ -635,13 +634,8 @@ export function useSummaryData({
     setConflictDataReady(false);
 
     try {
-      // No bloquees el primer paint esperando el perfil completo del usuario.
-      // Middleware ya protege /summary; el userId solo se necesita para datos secundarios.
-      const userIdPromise = getCurrentUserIdOrRedirect();
-
-      const [gs, activeId, es] = await Promise.all([
+      const [gs, es] = await Promise.all([
         getMyGroups(),
-        getActiveGroupIdFromDb().catch(() => null),
         getMyEventsForSummary({
           pastDays: SUMMARY_EVENTS_PAST_DAYS,
           futureDays: SUMMARY_EVENTS_FUTURE_DAYS,
@@ -652,10 +646,11 @@ export function useSummaryData({
         return;
       }
 
+      // getMyGroups() ya trae is_active desde groupsDb. Evitamos una llamada extra
+      // a active_group durante el arranque de Summary.
       const validActive =
-        activeId && gs.some((g) => String(g.id) === String(activeId))
-          ? String(activeId)
-          : null;
+        gs.find((g) => Boolean(g.is_active))?.id ??
+        (gs.length === 1 ? String(gs[0]?.id ?? "") || null : null);
 
       const safeEvents = (Array.isArray(es) ? es : []) as SummaryRawEvent[];
       const proposalEventIds = safeEvents
@@ -728,12 +723,13 @@ export function useSummaryData({
             getMyDeclinedEventIds().catch(() => new Set<string>()),
             getIgnoredConflictKeys().catch(() => new Set<string>()),
             getRecentConflictResolutionLogs(8).catch(() => []),
-            userIdPromise.then((userId) => {
+            (async () => {
+              const userId = await getCurrentUserIdOrRedirect().catch(() => null);
               if (!userId) return {};
               return getMyProposalResponsesForEvents(proposalEventIds, userId).catch(
                 () => ({})
               );
-            }),
+            })(),
             getProposalResponsesForEvents(proposalEventIds).catch(() => ({})),
           ]);
 

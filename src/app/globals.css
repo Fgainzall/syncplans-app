@@ -2,13 +2,13 @@
 
 /* Dark-first base: avoid browser white while CSS loads without adding a heavy loading screen. */
 html {
-  background: #0b1020;
+  background: #0B0F19;
   color-scheme: dark;
 }
 
 /* 🌙 SyncPlans Soft Dark Theme */
 :root {
-  --bg-main: #0b1020;
+  --bg-main: #0B0F19;
   --bg-card: #111833;
   --bg-card-soft: #141c3a;
 
@@ -27,20 +27,18 @@ html {
 html,
 body,
 #__next {
-  background: #0b1020;
+  background: #0B0F19;
 }
 
 html,
 body {
   max-width: 100vw;
   overflow-x: clip;
-  background-color: #0b1020;
+  background-color: #0B0F19;
 }
 
 body {
-  background:
-    radial-gradient(circle at top, rgba(59, 130, 246, 0.14), transparent 28%),
-    linear-gradient(180deg, #0b1020 0%, #0e1430 55%, #0b1020 100%);
+  background: #0B0F19;
   color: var(--text-primary);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
