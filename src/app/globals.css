@@ -1,28 +1,10 @@
 @import "tailwindcss";
 
-/* Prevent iOS/PWA white flash before React hydrates. */
+/* Dark-first base: avoid browser white while CSS loads without adding a heavy loading screen. */
 html {
-  background: #050816;
+  background: #0b1020;
   color-scheme: dark;
 }
-
-html.sp-root-dark,
-html.sp-root-dark body {
-  background-color: #050816;
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(900px 420px at 20% -10%, rgba(56, 189, 248, 0.18), transparent 60%),
-    radial-gradient(700px 380px at 90% 10%, rgba(124, 58, 237, 0.14), transparent 60%),
-    #050816;
-}
-
 
 /* 🌙 SyncPlans Soft Dark Theme */
 :root {
@@ -46,6 +28,7 @@ html,
 body {
   max-width: 100vw;
   overflow-x: clip;
+  background-color: #0b1020;
 }
 
 body {
