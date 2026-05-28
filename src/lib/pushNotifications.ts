@@ -39,13 +39,42 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray;
 }
 
-function isBrowserPushSupported(): boolean {
+export function isBrowserPushSupported(): boolean {
   return (
     typeof window !== "undefined" &&
     "serviceWorker" in navigator &&
     "PushManager" in window &&
     "Notification" in window
   );
+}
+
+export function isIOSDevice(): boolean {
+  if (typeof window === "undefined") return false;
+
+  const ua = window.navigator.userAgent || "";
+  const platform = window.navigator.platform || "";
+  const maxTouchPoints = Number(window.navigator.maxTouchPoints || 0);
+
+  return (
+    /iPad|iPhone|iPod/i.test(ua) ||
+    (platform === "MacIntel" && maxTouchPoints > 1)
+  );
+}
+
+export function isStandalonePwa(): boolean {
+  if (typeof window === "undefined") return false;
+
+  const navigatorRecord = window.navigator as Navigator & { standalone?: boolean };
+  return (
+    window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
+    navigatorRecord.standalone === true
+  );
+}
+
+export function getPushDeviceLabel(): string {
+  if (typeof window === "undefined") return "Dispositivo";
+  if (isIOSDevice()) return isStandalonePwa() ? "iPhone instalado" : "iPhone sin instalar";
+  return "Navegador compatible";
 }
 
 export function getPushPermissionStatus(): PushPermissionStatus {

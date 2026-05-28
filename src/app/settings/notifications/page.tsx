@@ -18,6 +18,15 @@ import {
   updateMyNotificationSettings,
   type NotificationSettings as UserNotificationSettings,
 } from "@/lib/userNotificationSettings";
+import {
+  ensurePushSubscription,
+  getExistingPushSubscription,
+  getPushDeviceLabel,
+  getPushPermissionStatus,
+  isBrowserPushSupported,
+  isIOSDevice,
+  isStandalonePwa,
+} from "@/lib/pushNotifications";
 
 type UiToast = { title: string; subtitle?: string } | null;
 type PushUiStatus = "checking" | "unsupported" | "default" | "denied" | "granted" | "subscribed" | "error";
@@ -27,52 +36,19 @@ type PushState = {
   label: string;
   detail: string;
 };
-type PushSubscribeResponse = {
-  ok?: boolean;
-  error?: string;
-};
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = `${base64String}${padding}`.replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-
-  for (let i = 0; i < rawData.length; i += 1) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-
-  return outputArray;
-}
-
-function isPushSupported(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    "serviceWorker" in navigator &&
-    "PushManager" in window &&
-    "Notification" in window
-  );
-}
-
-async function getExistingPushSubscription(): Promise<PushSubscription | null> {
-  if (!isPushSupported()) return null;
-  const registration = await navigator.serviceWorker.getRegistration("/sw.js");
-  if (!registration) return null;
-  return registration.pushManager.getSubscription();
-}
-
 function buildPushState(status: PushUiStatus): PushState {
   switch (status) {
     case "subscribed":
       return {
         status,
         label: "Push activo ✅",
-        detail: "Este navegador ya puede recibir alertas importantes de SyncPlans.",
+        detail: "Este dispositivo está registrado para recibir invitaciones y planes por confirmar fuera de SyncPlans.",
       };
     case "granted":
       return {
         status,
         label: "Permiso concedido",
-        detail: "Falta completar la suscripción push para este navegador.",
+        detail: "El permiso existe, pero falta registrar este dispositivo con SyncPlans.",
       };
     case "denied":
       return {
@@ -83,8 +59,8 @@ function buildPushState(status: PushUiStatus): PushState {
     case "unsupported":
       return {
         status,
-        label: "No disponible",
-        detail: "Este navegador o contexto no soporta Web Push.",
+        label: "No disponible aquí",
+        detail: "En iPhone, abre SyncPlans desde el ícono de pantalla de inicio. En desktop, usa un navegador compatible.",
       };
     case "error":
       return {
@@ -102,7 +78,7 @@ function buildPushState(status: PushUiStatus): PushState {
       return {
         status,
         label: "Pendiente",
-        detail: "Activa push para recibir avisos importantes, como el momento de salir hacia un evento.",
+        detail: "Activa push para recibir invitaciones y planes por confirmar aunque no estés dentro de la app.",
       };
   }
 }
@@ -120,6 +96,7 @@ export default function NotificationsSettingsPage() {
 
   const [pushStatus, setPushStatus] = useState<PushUiStatus>("checking");
   const [pushWorking, setPushWorking] = useState(false);
+  const [testingPush, setTestingPush] = useState(false);
 
   const showToast = useCallback((title: string, subtitle?: string) => {
     setToast({ title, subtitle });
@@ -127,18 +104,19 @@ export default function NotificationsSettingsPage() {
   }, []);
 
   const refreshPushStatus = useCallback(async () => {
-    if (!isPushSupported()) {
+    const permission = getPushPermissionStatus();
+
+    if (permission === "unsupported") {
       setPushStatus("unsupported");
       return;
     }
 
-    try {
-      const permission = Notification.permission;
-      if (permission === "denied") {
-        setPushStatus("denied");
-        return;
-      }
+    if (permission === "denied") {
+      setPushStatus("denied");
+      return;
+    }
 
+    try {
       const existing = await getExistingPushSubscription();
       if (existing) {
         setPushStatus("subscribed");
@@ -196,6 +174,9 @@ export default function NotificationsSettingsPage() {
   }, [appSettings, userNotif]);
 
   const pushState = useMemo(() => buildPushState(pushStatus), [pushStatus]);
+  const pushDeviceLabel = useMemo(() => getPushDeviceLabel(), [pushStatus]);
+  const isIosDevice = useMemo(() => isIOSDevice(), [pushStatus]);
+  const isStandaloneInstall = useMemo(() => isStandalonePwa(), [pushStatus]);
 
   function updateApp<K extends keyof AppNotificationSettings>(key: K, value: AppNotificationSettings[K]) {
     setAppSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -210,57 +191,78 @@ export default function NotificationsSettingsPage() {
       setPushWorking(true);
       setToast(null);
 
-      if (!isPushSupported()) {
+      if (!isBrowserPushSupported()) {
         setPushStatus("unsupported");
-        showToast("Push no está disponible", "Prueba en Chrome, Edge o un navegador compatible.");
+        showToast(
+          "Push no está disponible aquí",
+          isIOSDevice()
+            ? "En iPhone, agrega SyncPlans a pantalla de inicio y ábrelo desde ese ícono."
+            : "Prueba en Chrome, Edge, Safari compatible o un navegador con Web Push.",
+        );
         return;
       }
 
-      const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
-      if (!vapidPublicKey) {
-        setPushStatus("error");
-        showToast("Falta configurar Web Push", "Agrega NEXT_PUBLIC_VAPID_PUBLIC_KEY y vuelve a desplegar.");
-        return;
-      }
-
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        setPushStatus(permission === "denied" ? "denied" : "default");
-        showToast("Permiso no activado", "No te molestaré con push hasta que lo actives desde el navegador.");
-        return;
-      }
-
-      const registration = await navigator.serviceWorker.register("/sw.js");
-      await navigator.serviceWorker.ready;
-
-      const existing = await registration.pushManager.getSubscription();
-      const subscription =
-        existing ??
-        (await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey:
-  urlBase64ToUint8Array(vapidPublicKey) as unknown as BufferSource,
-        }));
-
-      const res = await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(subscription.toJSON()),
-      });
-
-   const json = (await res.json().catch(() => ({}))) as PushSubscribeResponse;
-if (!res.ok || !json.ok) {
-  throw new Error(json.error || "No se pudo guardar la suscripción push.");
-}
-
-      setPushStatus("subscribed");
-      showToast("Push activado ✅", "Ya puedes recibir alertas importantes de SyncPlans en este navegador.");
+      await ensurePushSubscription();
+      await refreshPushStatus();
+      showToast(
+        "Push activado ✅",
+        "Este dispositivo ya puede recibir invitaciones y planes por confirmar fuera de SyncPlans.",
+      );
     } catch (error) {
       console.error("[NotificationsSettings] enable push error", error);
-      setPushStatus("error");
-      showToast("No se pudo activar push", error instanceof Error ? error.message : "Inténtalo de nuevo en unos segundos.");
+      const message = error instanceof Error ? error.message : "Inténtalo de nuevo en unos segundos.";
+      setPushStatus(message.toLowerCase().includes("denied") ? "denied" : "error");
+      showToast("No se pudo activar push", message);
     } finally {
       setPushWorking(false);
+    }
+  }
+
+  async function handleSendRealPushTest() {
+    try {
+      setTestingPush(true);
+      setToast(null);
+
+      await ensurePushSubscription();
+      await refreshPushStatus();
+
+      const res = await fetch("/api/push/self-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "SyncPlans listo ✅",
+          body: "Prueba real: este dispositivo puede recibir push fuera de la app.",
+          url: "/settings/notifications",
+        }),
+      });
+
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        push?: { sent?: number; attempted?: number; skipped?: boolean; reason?: string };
+      };
+
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || "No se pudo enviar la prueba real.");
+      }
+
+      const sent = Number(json.push?.sent || 0);
+      if (sent <= 0) {
+        throw new Error(json.push?.reason || "No hay una suscripción push válida para este usuario.");
+      }
+
+      showToast(
+        "Prueba enviada ✅",
+        "Si el dispositivo está correctamente configurado, debería aparecer una notificación de SyncPlans fuera de la app.",
+      );
+    } catch (error) {
+      console.error("[NotificationsSettings] real push test error", error);
+      showToast(
+        "No se pudo enviar la prueba",
+        error instanceof Error ? error.message : "Revisa que el dispositivo tenga push activo.",
+      );
+    } finally {
+      setTestingPush(false);
     }
   }
 
@@ -343,9 +345,9 @@ if (!res.ok || !json.ok) {
           </section>
 
           <section style={styles.card}>
-            <div style={styles.sectionTitle}>Push del navegador</div>
+            <div style={styles.sectionTitle}>Notificaciones fuera de la app</div>
             <div style={styles.smallNote}>
-              Esta es la base para avisos reales como “ya es momento de salir” según tráfico, distancia y hora del evento.
+              Esto permite que invitaciones y planes por confirmar aparezcan como aviso del sistema, incluso si SyncPlans no está abierto.
             </div>
 
             <div style={styles.innerCard}>
@@ -353,22 +355,53 @@ if (!res.ok || !json.ok) {
                 <div style={{ minWidth: 0 }}>
                   <div style={styles.toggleTitle}>{pushState.label}</div>
                   <div style={styles.toggleSub}>{pushState.detail}</div>
+                  <div style={styles.deviceLine}>{pushDeviceLabel}</div>
                 </div>
-                <button
-                  onClick={() => void handleEnablePush()}
-                  disabled={pushWorking || pushStatus === "unsupported" || pushStatus === "denied"}
-                  style={{
-                    ...styles.primaryBtn,
-                    opacity: pushWorking || pushStatus === "unsupported" || pushStatus === "denied" ? 0.65 : 1,
-                    cursor: pushWorking ? "progress" : pushStatus === "unsupported" || pushStatus === "denied" ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {pushWorking ? "Activando…" : pushStatus === "subscribed" ? "Revalidar push" : "Activar push"}
-                </button>
+                <div style={styles.pushActions}>
+                  <button
+                    onClick={() => void handleEnablePush()}
+                    disabled={pushWorking || pushStatus === "denied"}
+                    style={{
+                      ...styles.primaryBtn,
+                      opacity: pushWorking || pushStatus === "denied" ? 0.65 : 1,
+                      cursor: pushWorking ? "progress" : pushStatus === "denied" ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {pushWorking ? "Activando…" : pushStatus === "subscribed" ? "Revalidar push" : "Activar push"}
+                  </button>
+                  <button
+                    onClick={() => void handleSendRealPushTest()}
+                    disabled={testingPush || pushWorking || pushStatus === "unsupported" || pushStatus === "denied"}
+                    style={{
+                      ...styles.secondaryBtn,
+                      opacity: testingPush || pushWorking || pushStatus === "unsupported" || pushStatus === "denied" ? 0.65 : 1,
+                      cursor: testingPush ? "progress" : pushStatus === "unsupported" || pushStatus === "denied" ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {testingPush ? "Enviando…" : "Enviar prueba real"}
+                  </button>
+                </div>
               </div>
 
+              {isIosDevice ? (
+                <div style={styles.iosGuide}>
+                  <div style={styles.iosGuideTitle}>iPhone: requisitos para recibir push</div>
+                  <div style={styles.iosSteps}>
+                    <span style={isStandaloneInstall ? styles.stepOk : styles.stepTodo}>1. Agregar SyncPlans a pantalla de inicio</span>
+                    <span style={isStandaloneInstall ? styles.stepOk : styles.stepTodo}>2. Abrirlo desde el ícono instalado</span>
+                    <span style={pushStatus === "subscribed" ? styles.stepOk : styles.stepTodo}>3. Tocar Activar push y aceptar el permiso</span>
+                    <span style={pushStatus === "subscribed" ? styles.stepOk : styles.stepTodo}>4. Enviar prueba real</span>
+                  </div>
+                  {!isStandaloneInstall ? (
+                    <div style={styles.note}>
+                      En iPhone, si estás entrando desde Safari normal, las notificaciones pueden no aparecer fuera de la app. Usa Compartir → Agregar a pantalla de inicio y abre SyncPlans desde ese ícono.
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div style={styles.note}>
-                <b>Importante:</b> el permiso depende del navegador y del dispositivo. En iPhone, la app debe estar instalada como PWA para recibir push web.
+                <b>Qué significa “prueba real”:</b> SyncPlans registra este dispositivo, llama al servidor y manda una push real a tu usuario. Si no aparece, el problema está en permiso, instalación PWA, VAPID o suscripción guardada.
               </div>
             </div>
           </section>
@@ -652,6 +685,30 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
   },
   pushRow: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, flexWrap: "wrap" },
+  pushActions: { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" },
+  deviceLine: { marginTop: 8, fontSize: 11, opacity: 0.82, fontWeight: 900 },
+  iosGuide: {
+    display: "grid",
+    gap: 10,
+    borderRadius: 16,
+    border: "1px solid rgba(96,165,250,0.18)",
+    background: "rgba(59,130,246,0.08)",
+    padding: 12,
+  },
+  iosGuideTitle: { fontSize: 13, fontWeight: 950 },
+  iosSteps: { display: "grid", gap: 8 },
+  stepOk: {
+    fontSize: 12,
+    lineHeight: 1.4,
+    fontWeight: 850,
+    color: "rgba(187,247,208,0.96)",
+  },
+  stepTodo: {
+    fontSize: 12,
+    lineHeight: 1.4,
+    fontWeight: 850,
+    color: "rgba(226,232,240,0.78)",
+  },
   note: {
     fontSize: 12,
     opacity: 0.78,
@@ -700,6 +757,16 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(96,165,250,0.28)",
     background: "rgba(59,130,246,0.18)",
     color: "rgba(255,255,255,0.98)",
+    fontSize: 13,
+    fontWeight: 900,
+  },
+  secondaryBtn: {
+    minHeight: 44,
+    padding: "0 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.92)",
     fontSize: 13,
     fontWeight: 900,
   },
