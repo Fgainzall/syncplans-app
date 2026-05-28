@@ -3,10 +3,16 @@ import type { Metadata, Viewport } from "next";
 import SWRegister from "./sw-register";
 import { ToastProvider } from "@/components/ui/Toast";
 import BottomNavVisibility from "@/components/BottomNavVisibility";
-import AppLaunchSplash from "@/components/AppLaunchSplash";
 
 export const metadata: Metadata = {
   title: "SyncPlans",
+  applicationName: "SyncPlans",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "SyncPlans",
+    statusBarStyle: "black-translucent",
+  },
   description:
     "El calendario que evita discusiones innecesarias cuando compartes tu tiempo.",
   icons: {
@@ -39,6 +45,14 @@ export default function RootLayout({
 }
     >
       <head>
+        <style
+          dangerouslySetInnerHTML={{
+            __html:
+              "html,body,#__next{background:#0B0F19!important;color-scheme:dark;}body{margin:0;}",
+          }}
+        />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         <meta name="theme-color" content="#0B0F19" />
@@ -57,7 +71,6 @@ export default function RootLayout({
         }}
       >
         <SWRegister />
-        <AppLaunchSplash />
         <ToastProvider>
           <div
             style={{
