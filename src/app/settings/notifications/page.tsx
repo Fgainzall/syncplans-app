@@ -174,9 +174,9 @@ export default function NotificationsSettingsPage() {
   }, [appSettings, userNotif]);
 
   const pushState = useMemo(() => buildPushState(pushStatus), [pushStatus]);
-  const pushDeviceLabel = useMemo(() => getPushDeviceLabel(), [pushStatus]);
-  const isIosDevice = useMemo(() => isIOSDevice(), [pushStatus]);
-  const isStandaloneInstall = useMemo(() => isStandalonePwa(), [pushStatus]);
+  const pushDeviceLabel = getPushDeviceLabel();
+  const isIosDevice = isIOSDevice();
+  const isStandaloneInstall = isStandalonePwa();
 
   function updateApp<K extends keyof AppNotificationSettings>(key: K, value: AppNotificationSettings[K]) {
     setAppSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
