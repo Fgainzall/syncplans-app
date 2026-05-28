@@ -154,6 +154,8 @@ const LOCATION_BREAK_TOKENS = [
   " desde ",
   " hasta ",
   " alas ",
+  " tipo ",
+  " tipo",
   " el proximo ",
   " el próximo ",
   " la proxima ",
@@ -558,6 +560,26 @@ function extractParticipants(raw: string): string[] {
 
   const patterns = [/\bcon\s+([^.;:!?]+)/gi, /\bjunto a\s+([^.;:!?]+)/gi];
 
+  const occasionOwnerPatterns = [
+    /\b(?:cumple|cumpleanos|cumpleaños|aniversario)\s+de\s+([^.;:!?]+)/gi,
+  ];
+
+  for (const pattern of occasionOwnerPatterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(sourceRaw)) !== null) {
+      const chunk = stripTrailingTimeAndDate(String(match[1] ?? "").trim());
+      if (!chunk) continue;
+
+      const rawNames = splitParticipantChunk(chunk);
+      for (const name of rawNames) {
+        const key = normalizeForMatching(name);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        participants.push(name);
+      }
+    }
+  }
+
   const placeOwnerPatterns = [
     /\ben\s+(?:la\s+|el\s+)?casa\s+de\s+([^.;:!?]+)/gi,
     /\ben\s+(?:el\s+)?(?:depa|departamento)\s+de\s+([^.;:!?]+)/gi,
@@ -722,6 +744,45 @@ function isProbablyValidLocationFragment(value: string): boolean {
   return true;
 }
 
+
+const LOCATION_BOUNDARY_WORDS =
+  "con|junto a|para|a las|a la|al|alas|tipo|el proximo|el próximo|la proxima|la próxima|proximo|próximo|proxima|próxima|siguiente|este|esta|hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|fin de semana|finde|de\\s+\\d{1,2}(?::\\d{2})?";
+
+function buildLocationConnectorRegex(connector: string) {
+  const safeConnector = connector.replace(/\s+/g, "\\s+");
+  return new RegExp(
+    `\\b${safeConnector}\\s+(.{1,80}?)(?=\\s+(?:${LOCATION_BOUNDARY_WORDS})\\b|[.,;:!?]|$)`,
+    "i",
+  );
+}
+
+function stripLeadingLocationArticle(value: string) {
+  const cleaned = collapseSpaces(value);
+  const normalized = normalizeForMatching(cleaned);
+  if (/^(el|la)\s+/.test(normalized)) {
+    const withoutArticle = cleaned.replace(/^(el|la)\s+/i, "");
+    const kind = normalizeForMatching(withoutArticle).split(" ")[0] || "";
+    if (
+      [
+        "estadio",
+        "club",
+        "restaurante",
+        "cancha",
+        "playa",
+        "campo",
+        "local",
+        "depa",
+        "departamento",
+        "oficina",
+        "casa",
+      ].includes(kind)
+    ) {
+      return withoutArticle;
+    }
+  }
+  return cleaned;
+}
+
 function detectLocationIntent(raw: string): {
   locationQuery: string | null;
   locationSource: "connector" | "at_symbol" | "house_of" | null;
@@ -730,7 +791,7 @@ function detectLocationIntent(raw: string): {
   const text = String(raw ?? "");
 
   const houseMatch = text.match(
-    /\ben\s+(?:la\s+|el\s+)?casa\s+de\s+([^.;:!?]+(?:\s+[^.;:!?]+){0,5})/i
+    /\ben\s+(?:la\s+|el\s+)?casa\s+de\s+(.{1,60}?)(?=\s+(?:con|a\s+las|a\s+la|al|alas|tipo|el\s+proximo|el\s+próximo|la\s+proxima|la\s+próxima|proximo|próximo|proxima|próxima|siguiente|este|esta|hoy|mañana|manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b|[.,;:!?]|$)/i,
   );
   if (houseMatch) {
     const cleaned = sanitizeLocationFragment(`Casa de ${houseMatch[1] ?? ""}`);
@@ -755,9 +816,8 @@ function detectLocationIntent(raw: string): {
     }
   }
 
-  const wherePersonMatch = text.match(
-    /\bdonde\s+([a-záéíóúñ]{2,}(?:\s+[a-záéíóúñ]{2,}){0,2})(?=\s+(?:el\s+proximo|el\s+próximo|la\s+proxima|la\s+próxima|proximo|próximo|proxima|próxima|siguiente|este|esta|hoy|mañana|manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|con|a\s+las|a\s+la|al|alas)\b|[.,;:!?]|$)/i,
-  );
+  const wherePersonRegex = buildLocationConnectorRegex("donde");
+  const wherePersonMatch = text.match(wherePersonRegex);
   if (wherePersonMatch?.[1]) {
     const owner = sanitizeLocationFragment(String(wherePersonMatch[1] ?? ""));
     const normalizedOwner = normalizeForMatching(owner);
@@ -765,7 +825,19 @@ function detectLocationIntent(raw: string): {
     const looksLikePerson =
       ownerWords.length > 0 &&
       ownerWords.length <= 3 &&
-      ownerWords.every((word) => !NAME_STOPWORDS.has(word) && !GENERIC_GROUP_PHRASES.includes(word));
+      ownerWords.every(
+        (word) => !NAME_STOPWORDS.has(word) && !GENERIC_GROUP_PHRASES.includes(word),
+      );
+
+    const relativeOwner = normalizedOwner.match(/^(?:mi|mis|tu|tus|su|sus)\s+(.{2,40})$/);
+    if (relativeOwner?.[1]) {
+      const relativeName = capitalizeNameLikeText(owner.replace(/^(mi|mis|tu|tus|su|sus)\s+/i, ""));
+      return {
+        locationQuery: `Casa de ${relativeName}`,
+        locationSource: "house_of",
+        locationConfidence: "high",
+      };
+    }
 
     if (looksLikePerson) {
       return {
@@ -777,21 +849,21 @@ function detectLocationIntent(raw: string): {
   }
 
   const connectorPatterns: Array<{
-    regex: RegExp;
+    connector: string;
     confidence: "medium" | "high";
   }> = [
-    { regex: /\bdonde\s+([^.;:!?]+)/i, confidence: "high" },
-    { regex: /\bjunto a\s+([^.;:!?]+)/i, confidence: "high" },
-    { regex: /\bcerca de\s+([^.;:!?]+)/i, confidence: "medium" },
-    { regex: /\bpor\s+([^.;:!?]+)/i, confidence: "medium" },
-    { regex: /\ben\s+([^.;:!?]+)/i, confidence: "medium" },
+    { connector: "donde", confidence: "high" },
+    { connector: "junto a", confidence: "high" },
+    { connector: "cerca de", confidence: "medium" },
+    { connector: "por", confidence: "medium" },
+    { connector: "en", confidence: "medium" },
   ];
 
   for (const pattern of connectorPatterns) {
-    const match = text.match(pattern.regex);
+    const match = text.match(buildLocationConnectorRegex(pattern.connector));
     if (!match) continue;
 
-    const cleaned = sanitizeLocationFragment(String(match[1] ?? ""));
+    const cleaned = sanitizeLocationFragment(stripLeadingLocationArticle(String(match[1] ?? "")));
     if (!isProbablyValidLocationFragment(cleaned)) continue;
 
     if (/\b(con|junto)\s+[a-záéíóúñ]/i.test(cleaned)) continue;
@@ -1252,6 +1324,7 @@ function removeDateAndTimeTokens(text: string): string {
     )
     .replace(/\b(a\s+las|a\s+la|al|alas)\b/gi, " ")
     .replace(/\b(mediodia|medianoche)\b/gi, " ")
+    .replace(/\btipo\b/gi, " ")
     .replace(
       /\b(\d{1,2})(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b(?!\s?(min|mins|m|h|hora|horas)\b)/gi,
       " "
@@ -1320,18 +1393,20 @@ function cleanNotesFromLocationIntent(
   let next = String(notes);
 
   if (source === "at_symbol") {
-    next = next.replace(new RegExp(`@\\s*${escaped}`, "i"), "");
+    next = next.replace(new RegExp(String.raw`@\s*${escaped}`, "i"), "");
   } else if (source === "house_of") {
     const houseName = locationQuery.replace(/^Casa\s+de\s+/i, "").trim();
     const escapedHouseName = houseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    next = next.replace(
-      new RegExp(`\\ben\\s+(?:la\\s+|el\\s+)?casa\\s+de\\s+(${escaped}|${escapedHouseName})\\b`, "i"),
-      ""
-    );
+    next = next
+      .replace(
+        new RegExp(String.raw`\ben\s+(?:la\s+|el\s+)?casa\s+de\s+(${escaped}|${escapedHouseName})(?=\s|[.,;:!?]|$)`, "i"),
+        "",
+      )
+      .replace(new RegExp(String.raw`\bdonde\s+(?:mi\s+|tu\s+|su\s+)?${escapedHouseName}(?=\s|[.,;:!?]|$)`, "i"), "");
   } else {
     next = next.replace(
-      new RegExp(`\\b(donde|en|cerca de|junto a|por)\\s+${escaped}\\b`, "i"),
-      ""
+      new RegExp(String.raw`\b(donde|en|cerca de|junto a|por)\s+(?:el\s+|la\s+)?${escaped}(?=\s|[.,;:!?]|$)`, "i"),
+      "",
     );
   }
 
