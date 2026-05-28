@@ -694,6 +694,7 @@ export default function NotificationsDrawer({
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("sp:notifications-changed"));
+        window.dispatchEvent(new Event("sp:events-changed"));
       }
     } catch {
       setToast({

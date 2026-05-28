@@ -26,7 +26,7 @@ import {
   getSuggestionContextLabel,
 } from "@/lib/timeSuggestions";
 import supabase from "@/lib/supabaseClient";
-import { upsertProposalResponse } from "@/lib/proposalResponsesDb";
+import { upsertProposalResponse, type ProposalResponseRow } from "@/lib/proposalResponsesDb";
 import {
   findLearnedPlaceMatch,
   getLearningSignals,
@@ -787,6 +787,152 @@ function isEventCreatedByCurrentUser(
   const creatorId = getSummaryEventCreatorId(event);
   const userId = String(currentUserId ?? "").trim();
   return Boolean(creatorId && userId && creatorId === userId);
+}
+
+
+function getProposalResponseForUser(
+  rows: ProposalResponseRow[] | null | undefined,
+  userId: string | null | undefined,
+): ProposalResponseRow | null {
+  const safeUserId = String(userId ?? "").trim();
+  if (!safeUserId || !Array.isArray(rows)) return null;
+
+  return (
+    rows.find((row) => String(row?.user_id ?? "").trim() === safeUserId) ??
+    null
+  );
+}
+
+function buildSummaryStatusBadge(
+  status: "pending" | "confirmed" | "adjusted" | "waiting",
+): StatusBadge {
+  if (status === "confirmed") {
+    return {
+      label: "Confirmado",
+      style: {
+        border: "1px solid rgba(52,211,153,0.28)",
+        background: "rgba(16,185,129,0.18)",
+        color: "rgba(209,250,229,0.98)",
+      },
+    };
+  }
+
+  if (status === "adjusted") {
+    return {
+      label: "Con cambios",
+      style: {
+        border: "1px solid rgba(103,232,249,0.24)",
+        background: "rgba(14,116,144,0.18)",
+        color: "rgba(207,250,254,0.98)",
+      },
+    };
+  }
+
+  if (status === "waiting") {
+    return {
+      label: "Esperando respuesta",
+      style: {
+        border: "1px solid rgba(251,191,36,0.22)",
+        background: "rgba(120,53,15,0.14)",
+        color: "rgba(254,243,199,0.96)",
+      },
+    };
+  }
+
+  return {
+    label: "Por confirmar",
+    style: {
+      border: "1px solid rgba(251,191,36,0.24)",
+      background: "rgba(120,53,15,0.18)",
+      color: "rgba(254,243,199,0.98)",
+    },
+  };
+}
+
+function getPersonalizedSummaryStatusBadge(input: {
+  event: SummaryEvent | null;
+  currentUserId: string | null;
+  conflictEventIds: Set<string>;
+  proposalResponsesMap: Record<string, ProposalResponseRow>;
+  proposalResponseGroupsMap: Record<string, ProposalResponseRow[]>;
+}): StatusBadge | null {
+  const eventId = String(input.event?.id ?? "").trim();
+  if (!eventId || !input.event) return null;
+
+  const currentUserId = String(input.currentUserId ?? "").trim();
+  const rows = input.proposalResponseGroupsMap[eventId] ?? [];
+  const ownRow =
+    input.proposalResponsesMap[eventId] ??
+    getProposalResponseForUser(rows, currentUserId);
+  const ownResponse = String(ownRow?.response ?? "").trim().toLowerCase();
+  const isCreator = isEventCreatedByCurrentUser(input.event, currentUserId);
+  const isSharedPlan = Boolean(input.event.groupId);
+
+  const unifiedStatus = getUnifiedEventStatus({
+    eventId,
+    conflictEventIds: input.conflictEventIds,
+    proposalResponseGroupsMap: input.proposalResponseGroupsMap,
+  });
+
+  if (unifiedStatus === "conflicted") {
+    const statusUi = getEventStatusUi("conflicted", {
+      conflictsCount: input.conflictEventIds.has(eventId) ? 1 : 0,
+    });
+    return {
+      label: statusUi.label,
+      style: statusUi.badgeStyle,
+    };
+  }
+
+  if (ownResponse === "accepted") {
+    return buildSummaryStatusBadge("confirmed");
+  }
+
+  if (ownResponse === "adjusted") {
+    return buildSummaryStatusBadge("adjusted");
+  }
+
+  if (ownResponse === "pending") {
+    return buildSummaryStatusBadge("pending");
+  }
+
+  if (!isSharedPlan) {
+    return null;
+  }
+
+  const otherRows = rows.filter(
+    (row) => String(row?.user_id ?? "").trim() !== currentUserId,
+  );
+  const otherResponses = otherRows.map((row) =>
+    String(row?.response ?? "").trim().toLowerCase(),
+  );
+
+  if (isCreator) {
+    if (otherResponses.includes("adjusted")) {
+      return buildSummaryStatusBadge("adjusted");
+    }
+
+    if (otherResponses.includes("pending")) {
+      return buildSummaryStatusBadge("waiting");
+    }
+
+    if (otherRows.length > 0 && otherResponses.every((value) => value === "accepted")) {
+      return buildSummaryStatusBadge("confirmed");
+    }
+
+    return null;
+  }
+
+  if (unifiedStatus === "adjusted") {
+    return buildSummaryStatusBadge("adjusted");
+  }
+
+  if (unifiedStatus === "confirmed") {
+    return buildSummaryStatusBadge("confirmed");
+  }
+
+  // Para un miembro de grupo sin respuesta propia todavía, la acción correcta es confirmar.
+  return buildSummaryStatusBadge("pending");
 }
 
 type NextMoveTone = "calm" | "info" | "warning" | "danger";
@@ -3478,44 +3624,25 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         visibleEvents.find((item) => String(item.id ?? "") === key) ?? null;
 
       if (optimisticConfirmedEventIds.has(key)) {
-        return {
-          label: "Confirmado",
-          style: {
-            border: "1px solid rgba(52,211,153,0.28)",
-            background: "rgba(16,185,129,0.18)",
-            color: "rgba(209,250,229,0.98)",
-          },
-        };
+        return buildSummaryStatusBadge("confirmed");
       }
 
-      const status = getUnifiedEventStatus({
-        eventId,
+      return getPersonalizedSummaryStatusBadge({
+        event,
+        currentUserId,
         conflictEventIds,
+        proposalResponsesMap,
         proposalResponseGroupsMap,
       });
-
-      if (!status || status === "scheduled") return null;
-
-      // El creador no debe confirmarse a sí mismo.
-      // El pendiente es para los demás miembros del grupo.
-      if (status === "pending" && isEventCreatedByCurrentUser(event, currentUserId)) {
-        return null;
-      }
-
-      // Un plan personal no necesita confirmación.
-      if (status === "pending" && !event?.groupId) {
-        return null;
-      }
-
-      const conflictsCount = conflictEventIds.has(key) ? 1 : 0;
-      const statusUi = getEventStatusUi(status, { conflictsCount });
-
-      return {
-        label: statusUi.label,
-        style: statusUi.badgeStyle,
-      };
     },
-    [conflictEventIds, currentUserId, optimisticConfirmedEventIds, proposalResponseGroupsMap, visibleEvents],
+    [
+      conflictEventIds,
+      currentUserId,
+      optimisticConfirmedEventIds,
+      proposalResponseGroupsMap,
+      proposalResponsesMap,
+      visibleEvents,
+    ],
   );
 
   const compactSummaryMobile = isMobile;
