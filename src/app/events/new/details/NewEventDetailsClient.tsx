@@ -1133,6 +1133,22 @@ function runSaveSideEffect(label: string, task: () => Promise<unknown>) {
     console.error(label, error);
   });
 }
+
+async function triggerPlanCreatedPush(eventId: string) {
+  const safeEventId = String(eventId ?? "").trim();
+  if (!safeEventId) return;
+
+  const response = await fetch("/api/push/plan-created", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ eventId: safeEventId }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload?.error || "No se pudo enviar push del plan.");
+  }
+}
 export default function NewEventDetailsClient() {
   return (
     <Suspense fallback={<main style={styles.page} />}>
@@ -3237,6 +3253,13 @@ useEffect(() => {
               type: payload.groupId ? "group" : "personal",
             },
           }),
+        );
+      }
+
+      if (savedEventId && payload.groupId) {
+        const createdEventId = savedEventId;
+        runSaveSideEffect("plan created push send failed", () =>
+          triggerPlanCreatedPush(createdEventId),
         );
       }
     }

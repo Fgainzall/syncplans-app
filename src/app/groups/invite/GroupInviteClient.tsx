@@ -38,6 +38,22 @@ function isEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+async function triggerGroupInvitePush(inviteId: string | null | undefined) {
+  const safeInviteId = String(inviteId ?? "").trim();
+  if (!safeInviteId) return;
+
+  const response = await fetch("/api/push/group-invite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ inviteId: safeInviteId }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload?.error || "No se pudo enviar push de invitación.");
+  }
+}
+
 function groupMeta(type: string) {
   switch (type) {
     case "pair":
@@ -214,6 +230,12 @@ rows.find((g) => g.is_active) ??
             : null;
 
       setLastInviteUrl(inviteUrl);
+
+      if (inviteId) {
+        void triggerGroupInvitePush(inviteId).catch((error) => {
+          console.error("group invite push failed", error);
+        });
+      }
 
       const invitedEmail = email.trim();
 
