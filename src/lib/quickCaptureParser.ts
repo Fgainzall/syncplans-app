@@ -91,6 +91,10 @@ const TITLE_NOTES_CONNECTORS = [
 ];
 
 const LOCATION_INVALID_SINGLE_TOKENS = new Set([
+  "el",
+  "la",
+  "los",
+  "las",
   "hoy",
   "manana",
   "mañana",
@@ -269,7 +273,9 @@ function normalizeForMatching(input: string) {
 }
 
 function collapseSpaces(input: string) {
-  return String(input ?? "").replace(/\s+/g, " ").trim();
+  return String(input ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function capitalizeFirst(input: string) {
@@ -340,13 +346,160 @@ function startOfToday() {
     12,
     0,
     0,
-    0
+    0,
   );
 }
 
-
 function startOfLocalDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    0,
+    0,
+    0,
+    0,
+  );
+}
+
+function textForDateKeywordDetection(input: string) {
+  return normalizeForMatching(input)
+    .replace(/\b(?:en|por|de)\s+la\s+manana\b/g, " ")
+    .replace(/\bla\s+manana\b/g, " ")
+    .replace(/\b(?:en|por|de)\s+la\s+tarde\b/g, " ")
+    .replace(/\b(?:en|por|de)\s+la\s+noche\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasCalendarDayKeyword(input: string) {
+  const normalized = textForDateKeywordDetection(input);
+  return /\b(hoy|manana|pasado manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/.test(
+    normalized,
+  );
+}
+
+function weekdayIndexFromWord(value: string): number | null {
+  const normalized = normalizeForMatching(value);
+  for (const [dayName, dayIndex] of Object.entries(DAYS_MAP)) {
+    if (normalizeForMatching(dayName) === normalized) return dayIndex;
+  }
+  return null;
+}
+
+function findNextMonthDateMatchingWeekday(
+  dayOfMonth: number,
+  targetWeekday: number,
+): Date | null {
+  const today = startOfLocalDay(new Date());
+
+  for (let offset = 0; offset <= 13; offset += 1) {
+    const candidateMonth = today.getMonth() + offset;
+    const candidate = new Date(
+      today.getFullYear(),
+      candidateMonth,
+      dayOfMonth,
+      12,
+      0,
+      0,
+      0,
+    );
+
+    if (candidate.getDate() !== dayOfMonth) continue;
+    if (candidate.getTime() < today.getTime()) continue;
+    if (candidate.getDay() !== targetWeekday) continue;
+
+    return candidate;
+  }
+
+  return null;
+}
+
+function extractWeekdayDayDate(text: string): Date | null {
+  const raw = String(text ?? "");
+  const match = raw.match(
+    new RegExp(
+      String.raw`\b(?:el\s+)?(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\s+(\d{1,2})(?:\s+de\s+(${MONTH_WORD_PATTERN}))?(?:\s+de\s+(\d{2,4}))?\b`,
+      "i",
+    ),
+  );
+
+  if (!match) return null;
+
+  const weekday = weekdayIndexFromWord(match[1] ?? "");
+  const dayOfMonth = Number(match[2]);
+  if (
+    weekday === null ||
+    !Number.isFinite(dayOfMonth) ||
+    dayOfMonth < 1 ||
+    dayOfMonth > 31
+  ) {
+    return null;
+  }
+
+  const month = match[3] ? MONTHS_MAP[normalizeForMatching(match[3])] : null;
+  const rawYear = match[4] ? Number(match[4]) : null;
+  const year =
+    rawYear === null
+      ? new Date().getFullYear()
+      : rawYear < 100
+        ? 2000 + rawYear
+        : rawYear;
+
+  if (month !== null && month !== undefined) {
+    const candidate = buildLocalDate(dayOfMonth, month, year, rawYear !== null);
+    if (!candidate) return null;
+    if (candidate.getDay() === weekday) return candidate;
+
+    if (rawYear === null) {
+      const nextYearCandidate = buildLocalDate(
+        dayOfMonth,
+        month,
+        year + 1,
+        true,
+      );
+      if (nextYearCandidate?.getDay() === weekday) return nextYearCandidate;
+    }
+
+    return candidate;
+  }
+
+  return findNextMonthDateMatchingWeekday(dayOfMonth, weekday);
+}
+
+function hasWeekdayDayDate(text: string) {
+  return extractWeekdayDayDate(text) !== null;
+}
+
+function hasExplicitTimeExpression(text: string) {
+  const raw = String(text ?? "");
+  const normalized = normalizeForMatching(raw);
+
+  if (/\b(mediodia|medianoche)\b/.test(normalized)) return true;
+  if (
+    /\b(?:de|desde)\s+\d{1,2}(?::\d{2})?\s?(?:a\.?m\.?|p\.?m\.?|am|pm)?\s+(?:a|hasta)\s+\d{1,2}(?::\d{2})?\s?(?:a\.?m\.?|p\.?m\.?|am|pm)?\b/i.test(
+      raw,
+    )
+  )
+    return true;
+  if (
+    /\b\d{1,2}:\d{2}\s?(?:a\.?m\.?|p\.?m\.?|am|pm)?\s+(?:a|hasta)\s+\d{1,2}(?::\d{2})?\s?(?:a\.?m\.?|p\.?m\.?|am|pm)?\b/i.test(
+      raw,
+    )
+  )
+    return true;
+  if (
+    /\b(?:a\s+las|a\s+la|alas|tipo|para\s+las|para\s+la)\s+\d{1,2}(?::\d{2})?\s?(?:a\.?m\.?|p\.?m\.?|am|pm)?\b/i.test(
+      raw,
+    )
+  )
+    return true;
+  if (/\b\d{1,2}:\d{2}\s?(?:a\.?m\.?|p\.?m\.?|am|pm)?\b/i.test(raw))
+    return true;
+  if (/\b\d{1,2}(?::\d{2})?\s?(?:a\.?m\.?|p\.?m\.?|am|pm)\b/i.test(raw))
+    return true;
+
+  return false;
 }
 
 function monthIndexFromFragment(fragment: string): number | null {
@@ -383,13 +536,21 @@ function buildLocalDate(
   year: number,
   yearWasExplicit: boolean,
 ): Date | null {
-  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) {
+  if (
+    !Number.isFinite(day) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(year)
+  ) {
     return null;
   }
   if (day < 1 || day > 31 || month < 0 || month > 11) return null;
 
   const date = new Date(year, month, day, 12, 0, 0, 0);
-  if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) {
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month ||
+    date.getDate() !== day
+  ) {
     return null;
   }
 
@@ -408,36 +569,52 @@ function parseExplicitDateFragment(
   if (numeric) {
     const day = Number(numeric[1]);
     const month = Number(numeric[2]) - 1;
-    const rawYear = numeric[3] ? Number(numeric[3]) : options.defaultYear ?? today.getFullYear();
+    const rawYear = numeric[3]
+      ? Number(numeric[3])
+      : (options.defaultYear ?? today.getFullYear());
     const year = rawYear < 100 ? 2000 + rawYear : rawYear;
     return buildLocalDate(day, month, year, Boolean(numeric[3]));
   }
 
   const normalized = normalizeForMatching(raw);
   const longMatch = normalized.match(
-    new RegExp(`\\b(\\d{1,2})(?:\\s+de)?\\s+(${MONTH_WORD_PATTERN})(?:\\s+de\\s+(\\d{4}|\\d{2}))?\\b`, "i"),
+    new RegExp(
+      `\\b(\\d{1,2})(?:\\s+de)?\\s+(${MONTH_WORD_PATTERN})(?:\\s+de\\s+(\\d{4}|\\d{2}))?\\b`,
+      "i",
+    ),
   );
   if (longMatch) {
     const day = Number(longMatch[1]);
     const month = MONTHS_MAP[longMatch[2]];
     const rawYear = longMatch[3]
       ? Number(longMatch[3])
-      : options.defaultYear ?? today.getFullYear();
+      : (options.defaultYear ?? today.getFullYear());
     const year = rawYear < 100 ? 2000 + rawYear : rawYear;
     return buildLocalDate(day, month, year, Boolean(longMatch[3]));
   }
 
   const dayOnly = normalized.match(/^\s*(\d{1,2})\s*$/);
-  if (dayOnly && options.defaultMonth !== undefined && options.defaultMonth !== null) {
+  if (
+    dayOnly &&
+    options.defaultMonth !== undefined &&
+    options.defaultMonth !== null
+  ) {
     const day = Number(dayOnly[1]);
     const year = options.defaultYear ?? today.getFullYear();
-    return buildLocalDate(day, options.defaultMonth, year, Boolean(options.defaultYear));
+    return buildLocalDate(
+      day,
+      options.defaultMonth,
+      year,
+      Boolean(options.defaultYear),
+    );
   }
 
   return null;
 }
 
-function extractExplicitDateRange(text: string): { start: Date; end: Date } | null {
+function extractExplicitDateRange(
+  text: string,
+): { start: Date; end: Date } | null {
   const raw = String(text ?? "");
   const match = raw.match(
     /\b(?:del|desde\s+el|desde)\s+(.{1,48}?)\s+(?:al|a|hasta|hasta\s+el)\s+(.{1,48}?)(?=\s+(?:en|con|para|por|a\s+las|a\s+la|alas)\b|[.,;!?]|$)/i,
@@ -487,10 +664,7 @@ function nextOccurrenceOfDay(base: Date, targetDay: number) {
 }
 
 function normalizePossibleName(value: string) {
-  const cleaned = normalizeForMatching(value).replace(
-    /[^a-zñáéíóúü\s]/gi,
-    " "
-  );
+  const cleaned = normalizeForMatching(value).replace(/[^a-zñáéíóúü\s]/gi, " ");
   const words = collapseSpaces(cleaned).split(" ").filter(Boolean);
 
   if (words.length === 0 || words.length > 3) return null;
@@ -512,8 +686,11 @@ function normalizeGenericGroupLabel(rawChunk: string): string | null {
   if (namedGroup?.[1]) {
     const cleanedGroup = collapseSpaces(
       namedGroup[1]
-        .replace(/\b(hoy|manana|mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b.*$/i, "")
-        .replace(/\b(a\s+las|a\s+la|al|alas)\s+\d{1,2}.*$/i, "")
+        .replace(
+          /\b(hoy|manana|mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b.*$/i,
+          "",
+        )
+        .replace(/\b(a\s+las|a\s+la|alas)\s+\d{1,2}.*$/i, "")
         .replace(/^[,.;:\-\s]+|[,.;:\-\s]+$/g, ""),
     );
     if (cleanedGroup && cleanedGroup.split(" ").length <= 4) {
@@ -521,13 +698,25 @@ function normalizeGenericGroupLabel(rawChunk: string): string | null {
     }
   }
 
-  if (withoutArticle === "chicos" || withoutArticle === "chicas") return "Amigos";
-  if (withoutArticle === "amigos" || withoutArticle === "amigas") return "Amigos";
-  if (withoutArticle === "familia" || withoutArticle === "mi familia") return "Familia";
+  if (withoutArticle === "chicos" || withoutArticle === "chicas")
+    return "Amigos";
+  if (withoutArticle === "amigos" || withoutArticle === "amigas")
+    return "Amigos";
+  if (withoutArticle === "familia" || withoutArticle === "mi familia")
+    return "Familia";
   if (withoutArticle.startsWith("familia ")) return "Familia";
-  if (withoutArticle.startsWith("amigos ") || withoutArticle.startsWith("amigas ")) return "Amigos";
-  if (withoutArticle === "equipo" || withoutArticle === "grupo") return "Equipo";
-  if (withoutArticle === "todos" || withoutArticle === "nosotros" || withoutArticle === "ustedes") {
+  if (
+    withoutArticle.startsWith("amigos ") ||
+    withoutArticle.startsWith("amigas ")
+  )
+    return "Amigos";
+  if (withoutArticle === "equipo" || withoutArticle === "grupo")
+    return "Equipo";
+  if (
+    withoutArticle === "todos" ||
+    withoutArticle === "nosotros" ||
+    withoutArticle === "ustedes"
+  ) {
     return "Grupo";
   }
 
@@ -543,8 +732,14 @@ function splitParticipantChunk(chunk: string): string[] {
 
 function stripTrailingTimeAndDate(chunk: string) {
   return String(chunk ?? "")
-    .replace(/\b(el|la|los|las)?\s*(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b.*$/i, "")
-    .replace(/\b(a\s+las|a\s+la|al|alas|de)?\s*\d{1,2}(?::\d{2})?\s*(?:a\s+\d{1,2}(?::\d{2})?\s*)?(a\.?m\.?|p\.?m\.?|am|pm)?\b.*$/i, "")
+    .replace(
+      /\b(el|la|los|las)?\s*(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b.*$/i,
+      "",
+    )
+    .replace(
+      /\b(a\s+las|a\s+la|al|alas|de)?\s*\d{1,2}(?::\d{2})?\s*(?:a\s+\d{1,2}(?::\d{2})?\s*)?(a\.?m\.?|p\.?m\.?|am|pm)?\b.*$/i,
+      "",
+    )
     .replace(/\b(en casa de|en|por|cerca de|donde|junto a)\b.*$/i, "")
     .replace(/\b(de|desde|hasta|a|al)\b\s*$/i, "")
     .replace(/\b(el|la|los|las)\b\s*$/i, "")
@@ -654,22 +849,22 @@ function removeParticipantPhrases(raw: string): string {
 
   text = text.replace(
     /\b(con|junto a|en casa de)\s+(?:el|la|los|las)?\s*(chicos|chicas|amigos|amigas|familia|mi familia|equipo|grupo|todos|nosotros|ustedes)\b/gi,
-    " "
+    " ",
   );
 
   text = text.replace(
-    /\b(con|junto a)\s+(?:los|las)\s+de\s+[^.;:!?]+?(?=\s+(?:en|donde|por|cerca de|junto a|a\s+las|a\s+la|al|alas|hoy|mañana|manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|proximo|próximo|proxima|próxima|siguiente)\b|[.,;:!?]|$)/gi,
+    /\b(con|junto a)\s+(?:los|las)\s+de\s+[^.;:!?]+?(?=\s+(?:en|donde|por|cerca de|junto a|a\s+las|a\s+la|alas|hoy|mañana|manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|proximo|próximo|proxima|próxima|siguiente)\b|[.,;:!?]|$)/gi,
     " ",
   );
 
   text = text.replace(
     /\b(en)\s+(?:el|la|los|las)?\s*(familia|pareja|grupo)\b/gi,
-    " "
+    " ",
   );
 
   text = text.replace(
     /\b(mi novia|mi novio|mi pareja|mi esposa|mi esposo|mi familia)\b/gi,
-    " "
+    " ",
   );
 
   return collapseSpaces(text);
@@ -679,7 +874,9 @@ function cutAtBreakToken(value: string): string {
   let result = String(value ?? "");
 
   for (const token of LOCATION_BREAK_TOKENS) {
-    const idx = normalizeForMatching(result).indexOf(normalizeForMatching(token));
+    const idx = normalizeForMatching(result).indexOf(
+      normalizeForMatching(token),
+    );
     if (idx > 0) {
       result = result.slice(0, idx);
       break;
@@ -701,9 +898,12 @@ function sanitizeLocationFragment(raw: string): string {
     )
     .replace(
       /\b(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b.*$/i,
-      ""
+      "",
     )
-    .replace(/\b(a\s+las|a\s+la|al|alas|de)\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\b.*$/i, "")
+    .replace(
+      /\b(a\s+las|a\s+la|al|alas|de)\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\b.*$/i,
+      "",
+    )
     .replace(/\b(\d+)\s?(min|mins|m|h|hora|horas)\b.*$/i, "")
     .trim();
 
@@ -726,11 +926,7 @@ function isProbablyValidLocationFragment(value: string): boolean {
   const words = normalized.split(" ").filter(Boolean);
   if (!words.length) return false;
 
-  if (
-    words.every(
-      (word) => LOCATION_TIME_WORDS.has(word) || /\d/.test(word)
-    )
-  ) {
+  if (words.every((word) => LOCATION_TIME_WORDS.has(word) || /\d/.test(word))) {
     return false;
   }
 
@@ -744,9 +940,8 @@ function isProbablyValidLocationFragment(value: string): boolean {
   return true;
 }
 
-
 const LOCATION_BOUNDARY_WORDS =
-  "con|junto a|para|a las|a la|al|alas|tipo|el proximo|el próximo|la proxima|la próxima|proximo|próximo|proxima|próxima|siguiente|este|esta|hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|fin de semana|finde|de\\s+\\d{1,2}(?::\\d{2})?";
+  "con|junto a|para|a las|a la|alas|tipo|el proximo|el próximo|la proxima|la próxima|proximo|próximo|proxima|próxima|siguiente|este|esta|hoy|mañana|manana|pasado mañana|pasado manana|el\\s+lunes|el\\s+martes|el\\s+miercoles|el\\s+miércoles|el\\s+jueves|el\\s+viernes|el\\s+sabado|el\\s+sábado|el\\s+domingo|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|la\\s+manana|la\\s+mañana|la\\s+tarde|la\\s+noche|fin de semana|finde|de\\s+\\d{1,2}(?::\\d{2})?";
 
 function buildLocationConnectorRegex(connector: string) {
   const safeConnector = connector.replace(/\s+/g, "\\s+");
@@ -791,7 +986,7 @@ function detectLocationIntent(raw: string): {
   const text = String(raw ?? "");
 
   const houseMatch = text.match(
-    /\ben\s+(?:la\s+|el\s+)?casa\s+de\s+(.{1,60}?)(?=\s+(?:con|a\s+las|a\s+la|al|alas|tipo|el\s+proximo|el\s+próximo|la\s+proxima|la\s+próxima|proximo|próximo|proxima|próxima|siguiente|este|esta|hoy|mañana|manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b|[.,;:!?]|$)/i,
+    /\ben\s+(?:la\s+|el\s+)?casa\s+de\s+(.{1,60}?)(?=\s+(?:con|a\s+las|a\s+la|alas|tipo|el\s+proximo|el\s+próximo|la\s+proxima|la\s+próxima|proximo|próximo|proxima|próxima|siguiente|este|esta|hoy|mañana|manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b|[.,;:!?]|$)/i,
   );
   if (houseMatch) {
     const cleaned = sanitizeLocationFragment(`Casa de ${houseMatch[1] ?? ""}`);
@@ -826,12 +1021,17 @@ function detectLocationIntent(raw: string): {
       ownerWords.length > 0 &&
       ownerWords.length <= 3 &&
       ownerWords.every(
-        (word) => !NAME_STOPWORDS.has(word) && !GENERIC_GROUP_PHRASES.includes(word),
+        (word) =>
+          !NAME_STOPWORDS.has(word) && !GENERIC_GROUP_PHRASES.includes(word),
       );
 
-    const relativeOwner = normalizedOwner.match(/^(?:mi|mis|tu|tus|su|sus)\s+(.{2,40})$/);
+    const relativeOwner = normalizedOwner.match(
+      /^(?:mi|mis|tu|tus|su|sus)\s+(.{2,40})$/,
+    );
     if (relativeOwner?.[1]) {
-      const relativeName = capitalizeNameLikeText(owner.replace(/^(mi|mis|tu|tus|su|sus)\s+/i, ""));
+      const relativeName = capitalizeNameLikeText(
+        owner.replace(/^(mi|mis|tu|tus|su|sus)\s+/i, ""),
+      );
       return {
         locationQuery: `Casa de ${relativeName}`,
         locationSource: "house_of",
@@ -863,7 +1063,9 @@ function detectLocationIntent(raw: string): {
     const match = text.match(buildLocationConnectorRegex(pattern.connector));
     if (!match) continue;
 
-    const cleaned = sanitizeLocationFragment(stripLeadingLocationArticle(String(match[1] ?? "")));
+    const cleaned = sanitizeLocationFragment(
+      stripLeadingLocationArticle(String(match[1] ?? "")),
+    );
     if (!isProbablyValidLocationFragment(cleaned)) continue;
 
     if (/\b(con|junto)\s+[a-záéíóúñ]/i.test(cleaned)) continue;
@@ -884,60 +1086,53 @@ function detectLocationIntent(raw: string): {
 
 function detectSignals(
   raw: string,
-  participants: string[]
+  participants: string[],
 ): ParsedQuickCaptureSignals {
   const normalized = normalizeForMatching(raw);
 
   const hasExplicitDate =
-    /\b(hoy|manana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
-      normalized
-    ) ||
+    hasCalendarDayKeyword(raw) ||
+    hasWeekdayDayDate(raw) ||
     /\b(proxima semana|proximo|próximo|proxima|próxima|siguiente|en dos semanas|la otra semana|semana que viene|este fin de semana|el otro finde)\b/.test(
-      normalized
+      normalized,
     ) ||
     /\b(?:del|desde)\s+\d{1,2}\b/i.test(raw) ||
     EXPLICIT_SINGLE_DATE_REGEX.test(raw);
   EXPLICIT_SINGLE_DATE_REGEX.lastIndex = 0;
 
-  const hasExplicitTime =
-    /\bde\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\s+a\s+\d{1,2}(?::(\d{2}))?\s?(am|pm)?\b/i.test(
-      raw
-    ) ||
-    /\b(a\s+las|a\s+la|al|alas)?\s*\d{1,2}(?::\d{2})?\s?(am|pm)?\b/i.test(raw) ||
-    /\b(mediodia|medianoche)\b/i.test(raw);
+  const hasExplicitTime = hasExplicitTimeExpression(raw);
 
   const mentionsWeekend =
     /\b(fin de semana|finde|sabado|sábado|domingo)\b/.test(normalized);
   const mentionsWeekday =
     /\b(entre semana|durante la semana|lunes|martes|miercoles|miércoles|jueves|viernes)\b/.test(
-      normalized
+      normalized,
     );
   const mentionsPeople =
     participants.length > 0 ||
     /\b(novia|novio|pareja|esposa|esposo|mama|mamá|papa|papá|familia|amigos|primos|tios|tíos)\b/.test(
-      normalized
+      normalized,
     );
   const mentionsPluralGroup =
     /\b(amigos|familia|primos|tios|tíos|equipo|grupo|todos|nosotros|ustedes|chicos|chicas)\b/.test(
-      normalized
+      normalized,
     );
-  const mentionsLocation =
-    /\b(en|por|cerca de|en casa de|donde|junto a)\s+[a-záéíóúñ0-9]+\b/i.test(raw);
+  const mentionsLocation = detectLocationIntent(raw).locationQuery !== null;
   const mentionsUrgency =
     /\b(hoy|esta tarde|esta noche|mañana|manana|urgente|antes de|si o si|sí o sí|cuanto antes)\b/.test(
-      normalized
+      normalized,
     );
   const mentionsLooseFuture =
     /\b(algun dia|algún día|uno de estos dias|uno de estos días|cuando puedan|cuando se pueda|esta semana|el otro finde|otro dia|otro día|mas adelante|más adelante)\b/.test(
-      normalized
+      normalized,
     );
   const mentionsRoutine =
     /\b(como siempre|de siempre|otra vez|de nuevo|semanal|mensual|cada)\b/.test(
-      normalized
+      normalized,
     );
   const mentionsCelebration =
     /\b(cumple|cumpleanos|cumpleaños|aniversario|celebracion|celebración|brunch)\b/.test(
-      normalized
+      normalized,
     );
   const mentionsHealth =
     /\b(medico|doctor|dentista|clinica|clínica|cita medica)\b/.test(normalized);
@@ -945,20 +1140,21 @@ function detectSignals(
     /\b(reunion|meeting|llamada|zoom|trabajo|oficina)\b/.test(normalized);
   const mentionsSports =
     /\b(fulbito|futbol|fútbol|padel|pádel|tenis|gym|entrenamiento)\b/.test(
-      normalized
+      normalized,
     );
   const mentionsFood =
     /\b(desayuno|almuerzo|cena|cafe|cafecito|comer|cenar|almorzar|parrilla|asado)\b/.test(
-      normalized
+      normalized,
     );
   const mentionsCouple =
     /\b(novia|novio|pareja|esposa|esposo|aniversario)\b/.test(normalized);
   const mentionsFamily =
     /\b(familia|familiar|mama|mamá|papa|papá|hijos|abuelos|primos|tios|tíos)\b/.test(
-      normalized
+      normalized,
     );
   const mentionsAtSymbolLocation = /@[^\s,.;:!?]+/.test(raw);
-  const mentionsHouseOfLocation = /\ben\s+(?:la\s+|el\s+)?casa\s+de\s+[a-záéíóúñ]/i.test(raw);
+  const mentionsHouseOfLocation =
+    /\ben\s+(?:la\s+|el\s+)?casa\s+de\s+[a-záéíóúñ]/i.test(raw);
 
   let confidenceScore = 0;
   if (hasExplicitDate) confidenceScore += 1;
@@ -1017,7 +1213,7 @@ function normalizeHourFromCapture(hour: number, period?: string | null) {
 function inferAmbiguousSingleTimePeriod(
   text: string,
   anchor: string,
-  hour: number
+  hour: number,
 ): "am" | "pm" | null {
   if (hour < 1 || hour > 11) return null;
 
@@ -1044,7 +1240,7 @@ function inferAmbiguousSingleTimePeriod(
 
   if (
     /\b(cena|cenar|cine|pelicula|peliculas|teatro|concierto|bar|tragos|drinks|fiesta|discoteca|previa|after|parrilla|asado)\b/.test(
-      context
+      context,
     )
   ) {
     return "pm";
@@ -1055,10 +1251,9 @@ function inferAmbiguousSingleTimePeriod(
   return null;
 }
 
-
 function inferPeriodFromContext(
   text: string,
-  anchor: string
+  anchor: string,
 ): "am" | "pm" | null {
   const normalizedText = normalizeForMatching(text);
   const normalizedAnchor = normalizeForMatching(anchor);
@@ -1081,7 +1276,7 @@ function inferPeriodFromContext(
   if (/\b(de la|por la)\s+(noche|tarde)\b/.test(context)) return "pm";
   if (
     /\b(cena|cenar|cine|pelicula|peliculas|teatro|concierto|bar|tragos|drinks|fiesta|discoteca|previa|parrilla|fulbito|futbol|asado|after)\b/.test(
-      context
+      context,
     )
   ) {
     return "pm";
@@ -1096,7 +1291,8 @@ function extractTimeRange(text: string): {
   endHour: number | null;
   endMinutes: number;
 } {
-  const normalized = normalizeForMatching(text);
+  const raw = String(text ?? "");
+  const normalized = normalizeForMatching(raw);
 
   if (/\bmediodia\b/.test(normalized)) {
     return { startHour: 12, startMinutes: 0, endHour: null, endMinutes: 0 };
@@ -1106,24 +1302,75 @@ function extractTimeRange(text: string): {
     return { startHour: 0, startMinutes: 0, endHour: null, endMinutes: 0 };
   }
 
-  const rangeMatch = String(text ?? "").match(
-    /\b(?:de\s+)?(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\s+a\s+(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/i
-  );
+  const rangePatterns = [
+    /\b(?:de|desde)\s+(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\s+(?:a|hasta)\s+(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/i,
+    /\b(\d{1,2}:\d{2})\s?(a\.?m\.?|p\.?m\.?|am|pm)?\s+(?:a|hasta)\s+(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/i,
+    /\b(\d{1,2}\s?(?:a\.?m\.?|p\.?m\.?|am|pm))\s+(?:a|hasta)\s+(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/i,
+  ];
 
-  if (rangeMatch) {
-    const inferredRangePeriod = inferPeriodFromContext(text, rangeMatch[0] ?? "");
-    const rawStartHour = parseInt(rangeMatch[1], 10);
-    const rawEndHour = parseInt(rangeMatch[4], 10);
-    const startPeriod = rangeMatch[3] || inferredRangePeriod;
-    const endPeriod = rangeMatch[6] || rangeMatch[3] || inferredRangePeriod;
-    const startHour = normalizeHourFromCapture(rawStartHour, startPeriod);
-    const startMinutes = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : 0;
-    let endHour = normalizeHourFromCapture(rawEndHour, endPeriod);
-    const endMinutes = rangeMatch[5] ? parseInt(rangeMatch[5], 10) : 0;
+  for (const pattern of rangePatterns) {
+    const rangeMatch = raw.match(pattern);
+    if (!rangeMatch) continue;
+
+    let rawStartHour: number;
+    let startMinutes = 0;
+    let startPeriod: string | null = null;
+    let rawEndHour: number;
+    let endMinutes = 0;
+    let endPeriod: string | null = null;
+
+    if (rangeMatch[1]?.includes(":")) {
+      const [h, m] = rangeMatch[1].split(":");
+      rawStartHour = Number(h);
+      startMinutes = Number(m);
+      startPeriod = rangeMatch[2] || null;
+      rawEndHour = Number(rangeMatch[3]);
+      endMinutes = rangeMatch[4] ? Number(rangeMatch[4]) : 0;
+      endPeriod = rangeMatch[5] || null;
+    } else if (/am|pm|a\.?m\.?|p\.?m\.?/i.test(rangeMatch[1] ?? "")) {
+      const start = String(rangeMatch[1] ?? "").match(
+        /(\d{1,2})\s?(a\.?m\.?|p\.?m\.?|am|pm)/i,
+      );
+      if (!start) continue;
+      rawStartHour = Number(start[1]);
+      startPeriod = start[2] || null;
+      rawEndHour = Number(rangeMatch[2]);
+      endMinutes = rangeMatch[3] ? Number(rangeMatch[3]) : 0;
+      endPeriod = rangeMatch[4] || null;
+    } else {
+      rawStartHour = Number(rangeMatch[1]);
+      startMinutes = rangeMatch[2] ? Number(rangeMatch[2]) : 0;
+      startPeriod = rangeMatch[3] || null;
+      rawEndHour = Number(rangeMatch[4]);
+      endMinutes = rangeMatch[5] ? Number(rangeMatch[5]) : 0;
+      endPeriod = rangeMatch[6] || null;
+    }
+
+    if (!Number.isFinite(rawStartHour) || !Number.isFinite(rawEndHour))
+      continue;
+
+    const inferredRangePeriod = inferPeriodFromContext(
+      raw,
+      rangeMatch[0] ?? "",
+    );
+    const startHour = normalizeHourFromCapture(
+      rawStartHour,
+      startPeriod || inferredRangePeriod,
+    );
+    let endHour = normalizeHourFromCapture(
+      rawEndHour,
+      endPeriod || startPeriod || inferredRangePeriod,
+    );
 
     // Caso típico en español: "de 12:30 a 1:30" suele significar 12:30–13:30,
     // no 12:30–01:30. Si no hay AM/PM explícito, ajustamos el final.
-    if (!rangeMatch[3] && !rangeMatch[6] && startHour >= 12 && endHour < startHour && rawEndHour <= 11) {
+    if (
+      !startPeriod &&
+      !endPeriod &&
+      startHour >= 12 &&
+      endHour < startHour &&
+      rawEndHour <= 11
+    ) {
       endHour += 12;
     }
 
@@ -1137,9 +1384,21 @@ function extractTimeRange(text: string): {
     }
   }
 
-  const singleMatch = String(text ?? "").match(
-    /(?:a\s+las\s+|a\s+la\s+|al\s+|alas\s+)?(\d{1,2})(?:[:h](\d{2}))?\s?(a\.?m\.?|p\.?m\.?)?\b/i
+  const explicitSingleMatch = raw.match(
+    /\b(?:a\s+las|a\s+la|alas|tipo|para\s+las|para\s+la)\s+(\d{1,2})(?:[:h](\d{2}))?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/i,
   );
+
+  const colonSingleMatch = explicitSingleMatch
+    ? null
+    : raw.match(/\b(\d{1,2}):(\d{2})\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/i);
+
+  const periodSingleMatch =
+    explicitSingleMatch || colonSingleMatch
+      ? null
+      : raw.match(/\b(\d{1,2})(?:[:h](\d{2}))?\s?(a\.?m\.?|p\.?m\.?|am|pm)\b/i);
+
+  const singleMatch =
+    explicitSingleMatch ?? colonSingleMatch ?? periodSingleMatch;
 
   if (!singleMatch) {
     return { startHour: null, startMinutes: 0, endHour: null, endMinutes: 0 };
@@ -1149,15 +1408,15 @@ function extractTimeRange(text: string): {
   const numericSingleHour = parseInt(singleMatch[1], 10);
   const inferredSinglePeriod =
     rawSinglePeriod ||
-    inferPeriodFromContext(text, singleMatch[0] ?? "") ||
+    inferPeriodFromContext(raw, singleMatch[0] ?? "") ||
     inferAmbiguousSingleTimePeriod(
-      text,
+      raw,
       singleMatch[0] ?? "",
-      numericSingleHour
+      numericSingleHour,
     );
   const startHour = normalizeHourFromCapture(
     numericSingleHour,
-    inferredSinglePeriod
+    inferredSinglePeriod,
   );
   const startMinutes = singleMatch[2] ? parseInt(singleMatch[2], 10) : 0;
 
@@ -1175,7 +1434,7 @@ function extractExplicitSingleClock(text: string): {
   endMinutes: number;
 } | null {
   const match = String(text ?? "").match(
-    /\b(?:a\s+las|a\s+la|alas)\s+(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/i,
+    /\b(?:a\s+las|a\s+la|alas|tipo|para\s+las|para\s+la)\s+(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/i,
   );
 
   if (!match) return null;
@@ -1185,7 +1444,12 @@ function extractExplicitSingleClock(text: string): {
   const hour = normalizeHourFromCapture(rawHour, match[3] ?? null);
 
   if (hour > 23 || minutes > 59) return null;
-  return { startHour: hour, startMinutes: minutes, endHour: null, endMinutes: 0 };
+  return {
+    startHour: hour,
+    startMinutes: minutes,
+    endHour: null,
+    endMinutes: 0,
+  };
 }
 
 function extractDuration(text: string): number {
@@ -1220,7 +1484,7 @@ function extractDuration(text: string): number {
 
 function extractDay(text: string): Date | null {
   const today = startOfToday();
-  const normalized = normalizeForMatching(text);
+  const normalized = textForDateKeywordDetection(text);
 
   if (normalized.includes("pasado manana")) return addDays(today, 2);
   if (normalized.includes("hoy")) return today;
@@ -1257,21 +1521,21 @@ function extractDay(text: string): Date | null {
 
   const hasOtherDayIntent =
     /\bel otro\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
-      normalized
+      normalized,
     ) ||
     /\bla otra\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
-      normalized
+      normalized,
     );
 
   const hasNextDayIntent =
     /\bproximo\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
-      normalized
+      normalized,
     ) ||
     /\bproxima\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
-      normalized
+      normalized,
     ) ||
     /\bsiguiente\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
-      normalized
+      normalized,
     );
 
   for (const [word, dayIndex] of Object.entries(DAYS_MAP)) {
@@ -1279,8 +1543,10 @@ function extractDay(text: string): Date | null {
     if (!regex.test(normalized)) continue;
 
     let result = nextOccurrenceOfDay(today, dayIndex);
-    if (hasNextWeekIntent || hasOtherDayIntent || hasNextDayIntent) result = addDays(result, 7);
-    if (hasTwoWeeksIntent) result = addDays(nextOccurrenceOfDay(today, dayIndex), 14);
+    if (hasNextWeekIntent || hasOtherDayIntent || hasNextDayIntent)
+      result = addDays(result, 7);
+    if (hasTwoWeeksIntent)
+      result = addDays(nextOccurrenceOfDay(today, dayIndex), 14);
     return result;
   }
 
@@ -1300,38 +1566,57 @@ function removeDateAndTimeTokens(text: string): string {
     .replace(EXPLICIT_DATE_RANGE_REGEX, " ")
     .replace(EXPLICIT_SINGLE_DATE_REGEX, " ")
     .replace(
+      new RegExp(
+        String.raw`\b(?:el\s+)?(?:lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\s+\d{1,2}(?:\s+de\s+(?:${MONTH_WORD_PATTERN}))?(?:\s+de\s+\d{2,4})?\b`,
+        "gi",
+      ),
+      " ",
+    )
+    .replace(
       /\b(el|la|los|las)\s+(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi,
-      " "
+      " ",
     )
     .replace(
       /\b(el|la|los|las)\s+(proximo|próximo|proxima|próxima|siguiente|otro|otra|este|esta)\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|fin de semana|finde|semana)\b/gi,
-      " "
+      " ",
     )
     .replace(
       /\b(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi,
-      " "
+      " ",
     )
     .replace(
       /\b(fin de semana|finde|este finde|este fin de semana|el otro finde|el otro fin de semana|proximo fin de semana|próximo fin de semana)\b/gi,
-      " "
+      " ",
     )
-    .replace(/\b(proximo|próximo|proxima|próxima|siguiente|otro|otra|este|esta)\b/gi, " ")
+    .replace(
+      /\b(proximo|próximo|proxima|próxima|siguiente|otro|otra|este|esta)\b/gi,
+      " ",
+    )
     .replace(/\b(semana|que|viene)\b/gi, " ")
     .replace(/\b(dentro de)\b/gi, " ")
     .replace(
-      /\bde\s+\d{1,2}(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\s+a\s+\d{1,2}(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/gi,
-      " "
+      /\b(?:de|desde)\s+\d{1,2}(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\s+(?:a|hasta)\s+\d{1,2}(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/gi,
+      " ",
     )
-    .replace(/\b(a\s+las|a\s+la|al|alas)\b/gi, " ")
+    .replace(
+      /\b(?:a\s+las|a\s+la|alas|tipo|para\s+las|para\s+la)\s+\d{1,2}(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/gi,
+      " ",
+    )
+    .replace(/\b\d{1,2}:\d{2}\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/gi, " ")
+    .replace(/\b\d{1,2}\s?(a\.?m\.?|p\.?m\.?|am|pm)\b/gi, " ")
+    .replace(/\b(a\s+las|a\s+la|alas|tipo|para\s+las|para\s+la)\b/gi, " ")
     .replace(/\b(mediodia|medianoche)\b/gi, " ")
     .replace(/\btipo\b/gi, " ")
     .replace(
-      /\b(\d{1,2})(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b(?!\s?(min|mins|m|h|hora|horas)\b)/gi,
-      " "
+      /\b(\d{1,2})(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)\b(?!\s?(min|mins|m|h|hora|horas)\b)/gi,
+      " ",
     )
     .replace(/\b(\d+)\s?(min|mins|m|h|hora|horas)\b/gi, " ")
     .replace(/\b(en dos semanas)\b/gi, " ")
-    .replace(/\b(el|la|los|las)\b(?=\s+(en casa de|en|donde|por|cerca de|junto a)\b)/gi, " ")
+    .replace(
+      /\b(el|la|los|las)\b(?=\s+(en casa de|en|donde|por|cerca de|junto a)\b)/gi,
+      " ",
+    )
     .replace(/\b(de|desde|hasta|a|al)\b(?=\s*$)/gi, " ")
     .replace(/\b(el|la|los|las)\b(?=\s*$)/gi, " ")
     .replace(/\s+/g, " ")
@@ -1341,9 +1626,12 @@ function removeDateAndTimeTokens(text: string): string {
 function cleanCapturedTitleText(raw: string): string {
   return collapseSpaces(
     removeParticipantPhrases(removeDateAndTimeTokens(raw))
-      .replace(/\b(con|junto a|para|por|en|de|desde|hasta|a|al)\b(?=\s*$)/gi, " ")
+      .replace(
+        /\b(con|junto a|para|por|en|de|desde|hasta|a|al)\b(?=\s*$)/gi,
+        " ",
+      )
       .replace(/\b(el|la|los|las)\b(?=\s*$)/gi, " ")
-      .replace(/^[,.;:\-\s]+|[,.;:\-\s]+$/g, " ")
+      .replace(/^[,.;:\-\s]+|[,.;:\-\s]+$/g, " "),
   );
 }
 
@@ -1363,7 +1651,10 @@ function findConnectorIndex(cleaned: string, connector: string) {
   return match.index + String(match[1] ?? "").length;
 }
 
-function splitTitleAndNotes(original: string): { title: string; notes: string } {
+function splitTitleAndNotes(original: string): {
+  title: string;
+  notes: string;
+} {
   const cleaned = cleanCapturedTitleText(original);
 
   for (const connector of TITLE_NOTES_CONNECTORS) {
@@ -1384,7 +1675,7 @@ function splitTitleAndNotes(original: string): { title: string; notes: string } 
 function cleanNotesFromLocationIntent(
   notes: string,
   locationQuery: string | null,
-  source: "connector" | "at_symbol" | "house_of" | null
+  source: "connector" | "at_symbol" | "house_of" | null,
 ) {
   if (!notes) return "";
   if (!locationQuery || !source) return collapseSpaces(notes);
@@ -1399,13 +1690,25 @@ function cleanNotesFromLocationIntent(
     const escapedHouseName = houseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     next = next
       .replace(
-        new RegExp(String.raw`\ben\s+(?:la\s+|el\s+)?casa\s+de\s+(${escaped}|${escapedHouseName})(?=\s|[.,;:!?]|$)`, "i"),
+        new RegExp(
+          String.raw`\ben\s+(?:la\s+|el\s+)?casa\s+de\s+(${escaped}|${escapedHouseName})(?=\s|[.,;:!?]|$)`,
+          "i",
+        ),
         "",
       )
-      .replace(new RegExp(String.raw`\bdonde\s+(?:mi\s+|tu\s+|su\s+)?${escapedHouseName}(?=\s|[.,;:!?]|$)`, "i"), "");
+      .replace(
+        new RegExp(
+          String.raw`\bdonde\s+(?:mi\s+|tu\s+|su\s+)?${escapedHouseName}(?=\s|[.,;:!?]|$)`,
+          "i",
+        ),
+        "",
+      );
   } else {
     next = next.replace(
-      new RegExp(String.raw`\b(donde|en|cerca de|junto a|por)\s+(?:el\s+|la\s+)?${escaped}(?=\s|[.,;:!?]|$)`, "i"),
+      new RegExp(
+        String.raw`\b(donde|en|cerca de|junto a|por)\s+(?:el\s+|la\s+)?${escaped}(?=\s|[.,;:!?]|$)`,
+        "i",
+      ),
       "",
     );
   }
@@ -1413,7 +1716,10 @@ function cleanNotesFromLocationIntent(
   return collapseSpaces(next.replace(/^[,.;:\-\s]+|[,.;:\-\s]+$/g, ""));
 }
 
-function cleanNotesFromParticipantIntent(notes: string, participants: string[]) {
+function cleanNotesFromParticipantIntent(
+  notes: string,
+  participants: string[],
+) {
   const value = collapseSpaces(notes);
   if (!value) return "";
   if (!participants.length) return value;
@@ -1428,7 +1734,7 @@ function cleanNotesFromParticipantIntent(notes: string, participants: string[]) 
       .replace(/,/g, " ");
 
     const participantKeys = new Set(
-      participants.map((participant) => normalizeForMatching(participant))
+      participants.map((participant) => normalizeForMatching(participant)),
     );
     const tokens = withoutConnector.split(" ").filter(Boolean);
 
@@ -1454,7 +1760,7 @@ function cleanFallbackTitle(raw: string): string {
 
 function shouldAppendParticipantToTitle(
   baseTitle: string,
-  participant: string
+  participant: string,
 ) {
   const normalizedBase = normalizeForMatching(baseTitle);
   const normalizedParticipant = normalizeForMatching(participant);
@@ -1469,7 +1775,7 @@ function shouldAppendParticipantToTitle(
   if (
     normalizedParticipant === "amigos" &&
     /padel|pádel|fulbito|futbol|fútbol|tenis|reunion|reunión|asado|after|previa/.test(
-      normalizedBase
+      normalizedBase,
     )
   ) {
     return false;
@@ -1488,7 +1794,7 @@ function buildSemanticTitle(baseTitle: string, participants: string[]): string {
   if (!safeBase) return "";
 
   const attachableParticipants = participants.filter((participant) =>
-    shouldAppendParticipantToTitle(safeBase, participant)
+    shouldAppendParticipantToTitle(safeBase, participant),
   );
 
   if (attachableParticipants.length === 0) return safeBase;
@@ -1511,14 +1817,26 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
   const signals = detectSignals(raw, participants);
   const locationIntent = detectLocationIntent(raw);
   const explicitRange = extractExplicitDateRange(raw);
-  const explicitSingleDate = explicitRange ? null : extractExplicitSingleDate(raw);
+  const explicitWeekdayDayDate = explicitRange
+    ? null
+    : extractWeekdayDayDate(raw);
+  const explicitSingleDate =
+    explicitRange || explicitWeekdayDayDate
+      ? null
+      : extractExplicitSingleDate(raw);
   const rawTimeRange = extractTimeRange(raw);
   const explicitClockTime = extractExplicitSingleClock(raw);
   const timeRange = explicitRange
-    ? explicitClockTime ?? { startHour: null, startMinutes: 0, endHour: null, endMinutes: 0 }
+    ? (explicitClockTime ?? {
+        startHour: null,
+        startMinutes: 0,
+        endHour: null,
+        endMinutes: 0,
+      })
     : rawTimeRange;
   const date =
     explicitRange?.start ??
+    explicitWeekdayDayDate ??
     explicitSingleDate ??
     extractDay(raw) ??
     (timeRange.startHour !== null ? startOfToday() : null);
@@ -1548,10 +1866,15 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
     }
 
     if (finalEndDate.getTime() <= finalDate.getTime()) {
-      finalEndDate = new Date(finalDate.getTime() + Math.max(60, inferredDuration) * 60 * 1000);
+      finalEndDate = new Date(
+        finalDate.getTime() + Math.max(60, inferredDuration) * 60 * 1000,
+      );
     }
 
-    duration = Math.max(60, Math.round((finalEndDate.getTime() - finalDate.getTime()) / 60000));
+    duration = Math.max(
+      60,
+      Math.round((finalEndDate.getTime() - finalDate.getTime()) / 60000),
+    );
   }
 
   const split = splitTitleAndNotes(raw);
@@ -1563,11 +1886,11 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
   const notesWithoutLocation = cleanNotesFromLocationIntent(
     split.notes,
     locationIntent.locationQuery,
-    locationIntent.locationSource
+    locationIntent.locationSource,
   );
   const cleanedNotes = cleanNotesFromParticipantIntent(
     notesWithoutLocation,
-    participants
+    participants,
   );
 
   return {
@@ -1584,15 +1907,28 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
     locationSource: locationIntent.locationSource,
     signals: {
       ...signals,
-      hasExplicitDate: signals.hasExplicitDate || !!explicitSingleDate || !!explicitRange,
-      hasExplicitTime:
-        signals.hasExplicitTime || timeRange.startHour !== null,
+      hasExplicitDate:
+        signals.hasExplicitDate ||
+        !!explicitWeekdayDayDate ||
+        !!explicitSingleDate ||
+        !!explicitRange,
+      hasExplicitTime: signals.hasExplicitTime || timeRange.startHour !== null,
       confidence:
-        date && timeRange.startHour !== null
+        (signals.hasExplicitDate ||
+          !!explicitWeekdayDayDate ||
+          !!explicitSingleDate ||
+          !!explicitRange) &&
+        timeRange.startHour !== null
           ? "high"
-          : date || timeRange.startHour !== null || participants.length > 0
-          ? "medium"
-          : signals.confidence,
+          : signals.hasExplicitDate ||
+              !!explicitWeekdayDayDate ||
+              !!explicitSingleDate ||
+              !!explicitRange ||
+              timeRange.startHour !== null ||
+              participants.length > 0 ||
+              locationIntent.locationQuery
+            ? "medium"
+            : signals.confidence,
     },
   };
 }
