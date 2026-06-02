@@ -2530,8 +2530,6 @@ useEffect(() => {
     quickCaptureTimeNeedsManualReview,
     quickCaptureTemporalTouched,
     quickCaptureConfidenceParam,
-    isQuickCaptureCreate,
-    quickCaptureLocationWasDetected,
   ]);
   const detailsIntelligence = useMemo(() => {
     const raw = String(rawTextParam || quickCaptureTitleParam || title || "").trim();
@@ -2650,6 +2648,77 @@ useEffect(() => {
     quickCaptureConfidenceParam,
     isQuickCaptureCreate,
     quickCaptureLocationWasDetected,
+  ]);
+
+  const quickCaptureReviewChecklist = useMemo(() => {
+    if (!quickCaptureReview?.fromQuickCapture) return [];
+
+    const raw = String(rawTextParam || quickCaptureTitleParam || title || "").trim();
+    const sharedSignal = detailsTextSuggestsSharedPlan(raw || `${title} ${notes}`);
+    const hasLocation = !!selectedPlace || locationInput.trim().length >= 3;
+    const locationLabel =
+      selectedPlace?.location_label || selectedPlace?.location_address || locationInput.trim();
+
+    const items: Array<{
+      label: string;
+      status: string;
+      detail: string;
+      tone: "ok" | "warn" | "neutral";
+    }> = [];
+
+    items.push({
+      label: "Título",
+      status: quickCaptureReview.titleNeedsReview ? "Revisar" : "Detectado",
+      detail: quickCaptureReview.titleNeedsReview
+        ? "Ajusta el título para que sea específico y no quede como texto bruto."
+        : title.trim() || "Título listo.",
+      tone: quickCaptureReview.titleNeedsReview ? "warn" : "ok",
+    });
+
+    items.push({
+      label: "Fecha y hora",
+      status: quickCaptureReview.missingDateOrTime ? "Por confirmar" : "Detectada",
+      detail: quickCaptureReview.missingDateOrTime
+        ? "No asumimos que el plan es hoy ni inventamos una hora. Revisa inicio y fin."
+        : dateRangeLabel || "Horario listo.",
+      tone: quickCaptureReview.missingDateOrTime ? "warn" : "ok",
+    });
+
+    items.push({
+      label: "Ubicación",
+      status: hasLocation ? "Detectada" : "Opcional",
+      detail: hasLocation
+        ? locationLabel
+        : "Agrega lugar si quieres usar Smart Mobility o evitar ambigüedad.",
+      tone: hasLocation ? "ok" : "neutral",
+    });
+
+    items.push({
+      label: "Tipo de plan",
+      status: effectiveType === "group" ? "Compartido" : sharedSignal ? "Sugerido" : "Personal",
+      detail:
+        effectiveType === "group"
+          ? selectedGroup
+            ? `Se guardará en ${selectedGroup.name}.`
+            : "Elige el grupo correcto antes de guardar."
+          : sharedSignal
+            ? "Parece compartible, pero lo dejamos personal hasta que elijas un grupo."
+            : "Solo tú lo verás.",
+      tone: effectiveType === "group" && !selectedGroup ? "warn" : sharedSignal && effectiveType === "personal" ? "warn" : "ok",
+    });
+
+    return items;
+  }, [
+    quickCaptureReview,
+    rawTextParam,
+    quickCaptureTitleParam,
+    title,
+    notes,
+    selectedPlace,
+    locationInput,
+    dateRangeLabel,
+    effectiveType,
+    selectedGroup,
   ]);
 
   const learningInput = useMemo(() => {
@@ -2880,7 +2949,7 @@ useEffect(() => {
     if (endDate.getTime() <= startDate.getTime())
       e.push("La hora de fin debe ser posterior al inicio.");
     if (quickCaptureTemporalNeedsReview)
-      e.push("Confirma manualmente la fecha y hora detectadas por Quick Capture.");
+      e.push("Revisa inicio y fin, luego toca “Ya confirmé fecha y hora” para guardar.");
 
     if (effectiveType === "group") {
       if (loadingGroups) e.push("Cargando grupos…");
@@ -4112,6 +4181,68 @@ useEffect(() => {
               </div>
             </div>
 
+            {quickCaptureReview ? (
+              <div style={styles.qcReviewHero}>
+                <div style={styles.qcReviewHeroHeader}>
+                  <div>
+                    <div style={styles.qcReviewHeroEyebrow}>Quick Capture</div>
+                    <div style={styles.qcReviewHeroTitle}>
+                      {quickCaptureReview.missingDateOrTime
+                        ? "Falta confirmar fecha u hora"
+                        : quickCaptureReview.hasIssues
+                          ? "Revisa la interpretación antes de guardar"
+                          : "Interpretación lista para guardar"}
+                    </div>
+                    <div style={styles.qcReviewHeroSub}>
+                      {quickCaptureReview.missingDateOrTime
+                        ? "SyncPlans no va a asumir que el plan es hoy ni inventar una hora. Revisa los campos marcados y confirma manualmente."
+                        : quickCaptureReview.hasIssues
+                          ? "Los datos principales llegaron prellenados, pero hay señales que conviene revisar para evitar un plan mal creado."
+                          : "Los campos principales tienen buena señal. Igual puedes ajustar cualquier dato antes de guardar."}
+                    </div>
+                  </div>
+                </div>
+
+                {quickCaptureReviewChecklist.length ? (
+                  <div style={styles.qcReviewStatusGrid}>
+                    {quickCaptureReviewChecklist.map((item) => (
+                      <div key={item.label} style={styles.qcReviewStatusItem}>
+                        <div style={styles.qcReviewStatusTop}>
+                          <span style={styles.qcReviewStatusLabel}>{item.label}</span>
+                          <span
+                            style={{
+                              ...styles.qcReviewStatusBadge,
+                              border:
+                                item.tone === "ok"
+                                  ? "1px solid rgba(52,211,153,0.24)"
+                                  : item.tone === "warn"
+                                    ? "1px solid rgba(245,158,11,0.28)"
+                                    : "1px solid rgba(148,163,184,0.20)",
+                              background:
+                                item.tone === "ok"
+                                  ? "rgba(52,211,153,0.10)"
+                                  : item.tone === "warn"
+                                    ? "rgba(245,158,11,0.12)"
+                                    : "rgba(148,163,184,0.09)",
+                              color:
+                                item.tone === "ok"
+                                  ? "rgba(187,247,208,0.96)"
+                                  : item.tone === "warn"
+                                    ? "rgba(253,230,138,0.96)"
+                                    : "rgba(226,232,240,0.84)",
+                            }}
+                          >
+                            {item.status}
+                          </span>
+                        </div>
+                        <div style={styles.qcReviewStatusDetail}>{item.detail}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             <div style={styles.field}>
               <div style={styles.fieldLabel}>Título</div>
               {quickCaptureReview?.titleNeedsReview ? (
@@ -4175,6 +4306,26 @@ useEffect(() => {
                 />
               </div>
             </div>
+
+            {quickCaptureReview?.missingDateOrTime ? (
+              <div style={styles.qcTemporalConfirmBox}>
+                <div>
+                  <div style={styles.qcTemporalConfirmTitle}>
+                    Confirma fecha y hora antes de guardar
+                  </div>
+                  <div style={styles.qcTemporalConfirmCopy}>
+                    Revisa el inicio y fin que aparecen arriba. Si están correctos, marca la confirmación para habilitar el guardado. Si no, cámbialos primero.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setQuickCaptureTemporalTouched(true)}
+                  style={styles.qcTemporalConfirmButton}
+                >
+                  Ya confirmé fecha y hora
+                </button>
+              </div>
+            ) : null}
 
             <div style={styles.field}>
               <div style={styles.fieldLabel}>Ubicación</div>
@@ -4999,17 +5150,19 @@ useEffect(() => {
               >
                 {saving
                   ? "Guardando…"
-                  : isEditing
-                    ? "Guardar cambios"
-                    : isSharedProposal
-                      ? proposalResponse === "adjust"
-                        ? "Guardar propuesta ajustada"
-                        : "Aceptar propuesta"
-                      : effectiveType === "group"
-                        ? isFirstWowMomentFlow && !isEditing
-                          ? "Crear primer plan compartido"
-                          : "Guardar plan compartido"
-                        : "Guardar plan"}
+                  : quickCaptureTemporalNeedsReview
+                    ? "Confirma fecha y hora primero"
+                    : isEditing
+                      ? "Guardar cambios"
+                      : isSharedProposal
+                        ? proposalResponse === "adjust"
+                          ? "Guardar propuesta ajustada"
+                          : "Aceptar propuesta"
+                        : effectiveType === "group"
+                          ? isFirstWowMomentFlow && !isEditing
+                            ? "Crear primer plan compartido"
+                            : "Guardar plan compartido"
+                          : "Guardar plan"}
               </button>
             </>
           )}
@@ -5627,6 +5780,158 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.04)",
     fontSize: 12,
     fontWeight: 850,
+  },
+  qcReviewHero: {
+    borderRadius: 18,
+    border: "1px solid rgba(56,189,248,0.22)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.12), rgba(15,23,42,0.62))",
+    padding: 14,
+    display: "grid",
+    gap: 12,
+    boxShadow: "0 18px 55px rgba(0,0,0,0.18)",
+  },
+  qcReviewHeroHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  qcReviewHeroEyebrow: {
+    fontSize: 10,
+    letterSpacing: "0.09em",
+    textTransform: "uppercase",
+    fontWeight: 950,
+    color: "rgba(125,211,252,0.94)",
+  },
+  qcReviewHeroTitle: {
+    marginTop: 5,
+    fontSize: 16,
+    fontWeight: 950,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.96)",
+    lineHeight: 1.2,
+  },
+  qcReviewHeroSub: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.82)",
+  },
+  qcReviewStatusGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))",
+    gap: 8,
+  },
+  qcReviewStatusItem: {
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(6,10,20,0.34)",
+    padding: "10px 11px",
+    display: "grid",
+    gap: 7,
+    minWidth: 0,
+  },
+  qcReviewStatusTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 8,
+    alignItems: "center",
+  },
+  qcReviewStatusLabel: {
+    fontSize: 11,
+    fontWeight: 950,
+    color: "rgba(226,232,240,0.78)",
+  },
+  qcReviewStatusBadge: {
+    borderRadius: 999,
+    padding: "4px 7px",
+    fontSize: 10,
+    fontWeight: 950,
+    whiteSpace: "nowrap",
+  },
+  qcReviewStatusDetail: {
+    fontSize: 12,
+    lineHeight: 1.35,
+    color: "rgba(255,255,255,0.86)",
+    overflowWrap: "anywhere",
+  },
+  qcTemporalConfirmBox: {
+    borderRadius: 16,
+    border: "1px solid rgba(245,158,11,0.28)",
+    background: "linear-gradient(135deg, rgba(120,53,15,0.20), rgba(15,23,42,0.64))",
+    padding: "12px 13px",
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  qcTemporalConfirmTitle: {
+    fontSize: 13,
+    fontWeight: 950,
+    color: "rgba(254,243,199,0.96)",
+  },
+  qcTemporalConfirmCopy: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(254,243,199,0.78)",
+    maxWidth: 520,
+  },
+  qcTemporalConfirmButton: {
+    minHeight: 38,
+    padding: "0 13px",
+    borderRadius: 999,
+    border: "1px solid rgba(245,158,11,0.34)",
+    background: "rgba(245,158,11,0.16)",
+    color: "rgba(254,243,199,0.98)",
+    fontSize: 12,
+    fontWeight: 950,
+    cursor: "pointer",
+  },
+  qcInlineWarn: {
+    borderRadius: 12,
+    border: "1px solid rgba(245,158,11,0.22)",
+    background: "rgba(245,158,11,0.09)",
+    color: "rgba(254,243,199,0.92)",
+    padding: "8px 10px",
+    fontSize: 12,
+    lineHeight: 1.4,
+    fontWeight: 750,
+  },
+  qcInlineWarnSoft: {
+    borderRadius: 12,
+    border: "1px solid rgba(148,163,184,0.18)",
+    background: "rgba(148,163,184,0.08)",
+    color: "rgba(226,232,240,0.84)",
+    padding: "8px 10px",
+    fontSize: 12,
+    lineHeight: 1.4,
+    fontWeight: 750,
+  },
+  qcReviewBox: {
+    marginTop: 12,
+    borderRadius: 14,
+    border: "1px solid rgba(245,158,11,0.24)",
+    background: "rgba(245,158,11,0.09)",
+    padding: "10px 12px",
+  },
+  qcReviewTitle: {
+    fontSize: 12,
+    fontWeight: 950,
+    color: "rgba(254,243,199,0.96)",
+    marginBottom: 6,
+  },
+  qcReviewList: {
+    margin: 0,
+    paddingLeft: 17,
+  },
+  qcReviewItem: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(255,255,255,0.86)",
+    marginBottom: 4,
   },
   postSaveSummaryCard: {
     marginTop: 14,
