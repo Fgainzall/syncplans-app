@@ -474,7 +474,14 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   const cleanedNotes = cleanTemporalNoise(rawNotes);
   const prettyNotes = sentenceCase(cleanedNotes);
   const durationMinutes = parsed.durationMinutes || 60;
-  const hasDate = Boolean(parsed.date && !Number.isNaN(parsed.date.getTime()));
+  const hasParsedDate = Boolean(parsed.date && !Number.isNaN(parsed.date.getTime()));
+  const hasDateDetected = Boolean(parsed.signals.hasExplicitDate && hasParsedDate);
+  const hasTimeDetected = Boolean(parsed.signals.hasExplicitTime && parsed.startHour !== null);
+  const hasLocationDetected = Boolean(
+    resolveLocationQueryForDetails(parsed.locationQuery, parsed.participants, draft.trim()) ||
+      resolvedContextLocation ||
+      contextPlaceIssue?.unresolvedLabel
+  );
   const canContinue = Boolean(draft.trim() && normalizedTitle);
   const hasNotes = Boolean(prettyNotes);
   const isDraftEmpty = !draft.trim();
@@ -490,10 +497,10 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   const missingChecks = useMemo(
     () => ({
       title: !title,
-      date: !hasDate,
+      date: !hasDateDetected,
       notes: !hasNotes,
     }),
-    [hasDate, hasNotes, title]
+    [hasDateDetected, hasNotes, title]
   );
 
   const clarityScore = useMemo(() => {
@@ -524,19 +531,35 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       };
     }
 
-    if (isSharedIntent && !hasDate) {
+    if (!hasDateDetected && !hasTimeDetected) {
       return {
-        label: "Para compartir mejor, falta cuándo",
+        label: "Entendí el plan, pero falta fecha y hora",
         tone: "warn" as const,
-        help: "Puedes continuar, pero poner fecha/hora ayuda a que ambos tengan el mismo contexto.",
+        help: "Puedes continuar, pero en el siguiente paso tendrás que confirmar cuándo es antes de guardarlo.",
       };
     }
 
-    if (!hasDate) {
+    if (!hasDateDetected) {
       return {
-        label: "Entendí el plan, pero falta cuándo",
+        label: "Entendí la hora, pero falta la fecha",
         tone: "warn" as const,
-        help: "Puedes continuar y ajustar luego, pero agregar fecha/hora evita confusiones.",
+        help: "No voy a asumir que es hoy. Confirma la fecha en el siguiente paso antes de guardar.",
+      };
+    }
+
+    if (!hasTimeDetected) {
+      return {
+        label: "Entendí la fecha, pero falta la hora",
+        tone: "warn" as const,
+        help: "No voy a asumir una hora final. Confirma la hora en el siguiente paso antes de guardar.",
+      };
+    }
+
+    if (isSharedIntent && (!hasDateDetected || !hasTimeDetected)) {
+      return {
+        label: "Para compartir mejor, falta cuándo",
+        tone: "warn" as const,
+        help: "Poner fecha y hora evita que todos coordinen con información incompleta.",
       };
     }
 
@@ -545,15 +568,19 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       tone: "success" as const,
       help: "Revisa los datos detectados y confirma para pasar al detalle final del plan.",
     };
-  }, [hasDate, isDraftEmpty, isSharedIntent, normalizedTitle]);
+  }, [hasDateDetected, hasTimeDetected, isDraftEmpty, isSharedIntent, normalizedTitle]);
 
   const summaryLine = useMemo(() => {
-    if (!hasDate) {
-      return "Tiene sentido así 👇";
+    if (!hasDateDetected) {
+      return "Tiene sentido así 👇 · Fecha por confirmar";
+    }
+
+    if (!hasTimeDetected) {
+      return `Tiene sentido así 👇 · ${formatDateLabel(parsed.date)} · Hora por confirmar`;
     }
 
     return `Tiene sentido así 👇 · ${formatDateLabel(parsed.date)}`;
-  }, [hasDate, parsed]);
+  }, [hasDateDetected, hasTimeDetected, parsed]);
 
   function buildDetailsUrl(response?: "accept" | "adjust") {
     const params = new URLSearchParams();
@@ -564,6 +591,10 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     params.set("title", normalizedTitle);
     params.set("duration", String(durationMinutes));
     params.set("raw_text", draft.trim());
+    params.set("date_detected", hasDateDetected ? "1" : "0");
+    params.set("time_detected", hasTimeDetected ? "1" : "0");
+    params.set("location_detected", hasLocationDetected ? "1" : "0");
+    params.set("qc_confidence", parsed.signals.confidence);
 
     const locationQueryForDetails =
       resolvedContextLocation ||
@@ -605,7 +636,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       );
     }
 
-    if (hasDate && parsed.date) {
+    if (hasDateDetected && parsed.date) {
       params.set("date", parsed.date.toISOString());
     }
 
@@ -621,7 +652,8 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
         source,
         intent: shouldCreateGroupPlan ? "shared" : "personal",
         action: "accept",
-        has_date: hasDate,
+        has_date: hasDateDetected,
+        has_time: hasTimeDetected,
         has_notes: hasNotes,
       },
     });
@@ -637,7 +669,8 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
         source,
         intent: shouldCreateGroupPlan ? "shared" : "personal",
         action: "adjust",
-        has_date: hasDate,
+        has_date: hasDateDetected,
+        has_time: hasTimeDetected,
         has_notes: hasNotes,
       },
     });
@@ -1139,7 +1172,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               />
               <PreviewRow
                 label="Fecha"
-                value={hasDate ? formatDateLabel(parsed.date) : "Sin fecha detectada"}
+                value={hasDateDetected ? formatDateLabel(parsed.date) : "Fecha por confirmar"}
                 muted={missingChecks.date}
                 severity={missingChecks.date ? "warn" : "default"}
               />
@@ -1357,9 +1390,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               />
               <MiniStep
                 text={
-                  hasDate
+                  hasDateDetected && hasTimeDetected
                     ? "Puedes confirmarla o cambiar algo antes"
-                    : "Si agregas fecha/hora, todo queda más claro"
+                    : "Confirma fecha y hora en el siguiente paso"
                 }
               />
             </div>
@@ -1408,7 +1441,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
             marginTop: 22,
           }}
         >
-          {isSharedIntent && !hasDate && canContinue ? (
+          {isSharedIntent && (!hasDateDetected || !hasTimeDetected) && canContinue ? (
             <div
               style={{
                 width: "100%",
@@ -1446,8 +1479,8 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 : "none",
             }}
             >
-            {isSharedIntent && !hasDate
-              ? "Continuar sin fecha"
+            {isSharedIntent && (!hasDateDetected || !hasTimeDetected)
+              ? "Continuar y confirmar fecha/hora"
               : isSharedIntent
                 ? "Sí, hagámoslo así"
                 : "Continuar con este plan"}

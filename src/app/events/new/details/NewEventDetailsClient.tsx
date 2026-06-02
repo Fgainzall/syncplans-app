@@ -1174,6 +1174,16 @@ function NewEventDetailsInner() {
   const quickCaptureTitleParam = sp.get("title");
   const quickCaptureDurationParam = sp.get("duration");
   const quickCaptureNotesParam = sp.get("notes");
+  const quickCaptureDateDetectedParam = sp.get("date_detected");
+  const quickCaptureTimeDetectedParam = sp.get("time_detected");
+  const quickCaptureLocationDetectedParam = sp.get("location_detected");
+  const quickCaptureConfidenceParamRaw = sp.get("qc_confidence");
+  const quickCaptureConfidenceParam =
+    quickCaptureConfidenceParamRaw === "high" ||
+    quickCaptureConfidenceParamRaw === "medium" ||
+    quickCaptureConfidenceParamRaw === "low"
+      ? quickCaptureConfidenceParamRaw
+      : null;
   const captureSourceParam = sp.get("capture_source");
   const rawTextParam = sp.get("raw_text");
   const intentParam = sp.get("intent");
@@ -1205,6 +1215,13 @@ function NewEventDetailsInner() {
   const isFirstWowMomentFlow =
     wowParam === "1" || fromParam === "first-group" || fromParam === "summary";
   const hasExplicitGroupParam = !!String(groupIdParam ?? "").trim();
+  const isQuickCaptureCreate = quickCaptureParam === "1" && !isEditing;
+  const quickCaptureDateNeedsManualReview =
+    isQuickCaptureCreate && quickCaptureDateDetectedParam === "0";
+  const quickCaptureTimeNeedsManualReview =
+    isQuickCaptureCreate && quickCaptureTimeDetectedParam === "0";
+  const quickCaptureLocationWasDetected =
+    quickCaptureLocationDetectedParam === "1" || !!String(locationQueryParam ?? "").trim();
 
   const initialStart = useMemo(() => {
     const parsedDateParam = dateParam ? new Date(dateParam) : null;
@@ -1301,6 +1318,7 @@ function NewEventDetailsInner() {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [externalProposalActive, setExternalProposalActive] = useState(false);
+  const [quickCaptureTemporalTouched, setQuickCaptureTemporalTouched] = useState(false);
   const quickCaptureHydratedRef = useRef(false);
   const isSharedProposal =
     !isEditing && (intentParam === "shared" || proposalParam === "1");
@@ -1588,6 +1606,9 @@ function NewEventDetailsInner() {
   ]);
   const startDate = useMemo(() => fromInputLocal(startLocal), [startLocal]);
   const endDate = useMemo(() => fromInputLocal(endLocal), [endLocal]);
+  const quickCaptureTemporalNeedsReview =
+    (quickCaptureDateNeedsManualReview || quickCaptureTimeNeedsManualReview) &&
+    !quickCaptureTemporalTouched;
   const isMultiDayEvent = useMemo(() => {
     if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) {
       return false;
@@ -2459,11 +2480,20 @@ useEffect(() => {
       !normalizedNotes ||
       (normalizedRaw && normalizedNotes && normalizedNotes === normalizedRaw);
 
-    const missingDateOrTime = !hasValidStart || !hasValidEnd;
+    const missingDateOrTime = !hasValidStart || !hasValidEnd || quickCaptureTemporalNeedsReview;
 
     const reviewItems: string[] = [];
     if (!hasValidStart) {
       reviewItems.push("Falta fecha/hora válida en el formulario.");
+    }
+    if (quickCaptureDateNeedsManualReview && !quickCaptureTemporalTouched) {
+      reviewItems.push("Quick Capture no detectó una fecha explícita. Confírmala antes de guardar.");
+    }
+    if (quickCaptureTimeNeedsManualReview && !quickCaptureTemporalTouched) {
+      reviewItems.push("Quick Capture no detectó una hora explícita. Confírmala antes de guardar.");
+    }
+    if (quickCaptureConfidenceParam === "low") {
+      reviewItems.push("La interpretación tiene baja confianza. Revisa los campos principales.");
     }
     if (hasValidStart && !hasValidEnd) {
       reviewItems.push(
@@ -2495,6 +2525,13 @@ useEffect(() => {
     notes,
     startDate,
     endDate,
+    quickCaptureTemporalNeedsReview,
+    quickCaptureDateNeedsManualReview,
+    quickCaptureTimeNeedsManualReview,
+    quickCaptureTemporalTouched,
+    quickCaptureConfidenceParam,
+    isQuickCaptureCreate,
+    quickCaptureLocationWasDetected,
   ]);
   const detailsIntelligence = useMemo(() => {
     const raw = String(rawTextParam || quickCaptureTitleParam || title || "").trim();
@@ -2536,13 +2573,27 @@ useEffect(() => {
     if (isMultiDayEvent) chips.push("Plan de varios días");
     if (durationLabel) chips.push(`Duración: ${durationLabel}`);
     if (dateRangeLabel) chips.push(dateRangeLabel);
+    if (quickCaptureDateNeedsManualReview && !quickCaptureTemporalTouched) chips.push("Fecha por confirmar");
+    if (quickCaptureTimeNeedsManualReview && !quickCaptureTemporalTouched) chips.push("Hora por confirmar");
+    if (quickCaptureConfidenceParam === "low") chips.push("Revisión necesaria");
     if (hasLocation) chips.push("Con ubicación");
-    else if (shouldPromptLocation) chips.push("Falta ubicación");
+    else if (
+      shouldPromptLocation ||
+      (isQuickCaptureCreate &&
+        !quickCaptureLocationWasDetected &&
+        detailsTextSuggestsLocationNeeded(locationText))
+    ) chips.push("Falta ubicación");
     if (sharedSignal && effectiveType === "personal") chips.push("Compartible");
 
     const recommendations: string[] = [];
     if (quickCaptureReview?.hasIssues) {
       recommendations.push("Revisa los campos marcados antes de guardar.");
+    }
+    if (quickCaptureDateNeedsManualReview && !quickCaptureTemporalTouched) {
+      recommendations.push("No asumimos que el plan es hoy: confirma la fecha manualmente.");
+    }
+    if (quickCaptureTimeNeedsManualReview && !quickCaptureTemporalTouched) {
+      recommendations.push("No asumimos una hora por defecto: confirma la hora manualmente.");
     }
     if (learnedPlaceNotice && selectedPlace) {
       recommendations.push(
@@ -2552,7 +2603,12 @@ useEffect(() => {
     if (isMultiDayEvent && hasLocation) {
       recommendations.push("La ubicación queda como contexto del viaje o estadía. Smart Mobility quedará pausado para este rango.");
     }
-    if (shouldPromptLocation) {
+    if (
+      shouldPromptLocation ||
+      (isQuickCaptureCreate &&
+        !quickCaptureLocationWasDetected &&
+        detailsTextSuggestsLocationNeeded(locationText))
+    ) {
       recommendations.push("Agrega ubicación para calcular salida y ruta.");
     }
     if (sharedSignal && effectiveType === "personal") {
@@ -2588,6 +2644,12 @@ useEffect(() => {
     isSharedProposal,
     proposalResponse,
     learnedPlaceNotice,
+    quickCaptureDateNeedsManualReview,
+    quickCaptureTimeNeedsManualReview,
+    quickCaptureTemporalTouched,
+    quickCaptureConfidenceParam,
+    isQuickCaptureCreate,
+    quickCaptureLocationWasDetected,
   ]);
 
   const learningInput = useMemo(() => {
@@ -2817,6 +2879,8 @@ useEffect(() => {
       e.push("Fecha/hora inválida.");
     if (endDate.getTime() <= startDate.getTime())
       e.push("La hora de fin debe ser posterior al inicio.");
+    if (quickCaptureTemporalNeedsReview)
+      e.push("Confirma manualmente la fecha y hora detectadas por Quick Capture.");
 
     if (effectiveType === "group") {
       if (loadingGroups) e.push("Cargando grupos…");
@@ -2831,6 +2895,7 @@ useEffect(() => {
     title,
     startDate,
     endDate,
+    quickCaptureTemporalNeedsReview,
     effectiveType,
     loadingGroups,
     selectedGroupId,
@@ -4081,7 +4146,10 @@ useEffect(() => {
                 <input
                   type="datetime-local"
                   value={startLocal}
-                  onChange={(e) => setStartLocal(e.target.value)}
+                  onChange={(e) => {
+                    setQuickCaptureTemporalTouched(true);
+                    setStartLocal(e.target.value);
+                  }}
                   onBlur={onAutoEnd}
                   style={
                     quickCaptureReview?.missingDateOrTime
@@ -4099,7 +4167,10 @@ useEffect(() => {
                 <input
                   type="datetime-local"
                   value={endLocal}
-                  onChange={(e) => setEndLocal(e.target.value)}
+                  onChange={(e) => {
+                    setQuickCaptureTemporalTouched(true);
+                    setEndLocal(e.target.value);
+                  }}
                   style={styles.input}
                 />
               </div>
