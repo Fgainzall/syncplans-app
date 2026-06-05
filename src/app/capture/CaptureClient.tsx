@@ -21,7 +21,7 @@ const EXAMPLES = [
 
 function pickIncomingText(
   searchParams: ReturnType<typeof useSearchParams>,
-  initialText: string
+  initialText: string,
 ) {
   const candidates = [
     searchParams.get("text"),
@@ -141,7 +141,7 @@ function normalizeCaptureTextForMatching(value: string) {
 function resolveLocationQueryForDetails(
   locationQuery: string | null | undefined,
   participants: string[] | null | undefined,
-  rawText: string
+  rawText: string,
 ) {
   const query = normalizeTitle(String(locationQuery || ""));
   if (!query) return "";
@@ -170,7 +170,6 @@ function resolveLocationQueryForDetails(
 
   return query;
 }
-
 
 type ContextPlaceKind =
   | "casa"
@@ -219,7 +218,9 @@ function normalizeContextPlaceKind(value: string): ContextPlaceKind {
   return (normalized as ContextPlaceKind) || "casa";
 }
 
-function getFirstRelevantParticipant(participants: string[] | null | undefined) {
+function getFirstRelevantParticipant(
+  participants: string[] | null | undefined,
+) {
   return (
     (participants || [])
       .map((participant) => normalizeTitle(String(participant || "")))
@@ -231,13 +232,13 @@ function prettifyContextOwner(value: string) {
   return normalizeTitle(
     String(value || "")
       .replace(/^(mi|mis|tu|tus|su|sus)\s+/i, "")
-      .trim()
+      .trim(),
   );
 }
 
 function detectContextualPlaceIssue(
   rawText: string,
-  participants: string[] | null | undefined
+  participants: string[] | null | undefined,
 ): ContextPlaceIssue | null {
   const raw = String(rawText || "");
   if (!raw.trim()) return null;
@@ -247,7 +248,7 @@ function detectContextualPlaceIssue(
     "casa|depa|departamento|oficina|club|playa|cancha|campo|colegio|universidad|local|terraza";
 
   const possessiveMatch = raw.match(
-    new RegExp(`\\b(mi|mis|tu|tus|su|sus)\\s+(${placeWords})\\b`, "i")
+    new RegExp(`\\b(mi|mis|tu|tus|su|sus)\\s+(${placeWords})\\b`, "i"),
   );
 
   if (possessiveMatch?.[1] && possessiveMatch?.[2]) {
@@ -275,7 +276,7 @@ function detectContextualPlaceIssue(
   }
 
   const whereRelativeMatch = raw.match(
-    /\bdonde\s+(mi|tu|su)\s+(mam[aá]|pap[aá]|herman[oa]|amig[oa]|primo|prima|t[ií]o|t[ií]a|abuelo|abuela|pareja|novi[oa])\b/i
+    /\bdonde\s+(mi|tu|su)\s+(mam[aá]|pap[aá]|herman[oa]|amig[oa]|primo|prima|t[ií]o|t[ií]a|abuelo|abuela|pareja|novi[oa])\b/i,
   );
 
   if (whereRelativeMatch?.[1] && whereRelativeMatch?.[2]) {
@@ -297,7 +298,7 @@ function detectContextualPlaceIssue(
   }
 
   const genericMatch = raw.match(
-    /\b(?:en|por|cerca de|junto a|donde)\s+(?:el|la)\s+(club|playa|cancha|campo|oficina|colegio|universidad|local|terraza)\b(?!\s+(?:de|del)\b)(?!\s+[a-záéíóúñ]{3,})/i
+    /\b(?:en|por|cerca de|junto a|donde)\s+(?:el|la)\s+(club|playa|cancha|campo|oficina|colegio|universidad|local|terraza)\b(?!\s+(?:de|del)\b)(?!\s+[a-záéíóúñ]{3,})/i,
   );
 
   if (genericMatch?.[1]) {
@@ -324,7 +325,7 @@ function detectContextualPlaceIssue(
 function buildResolvedContextLocation(
   issue: ContextPlaceIssue | null,
   choice: ContextPlaceChoice,
-  customValue: string
+  customValue: string,
 ) {
   if (!issue) return "";
 
@@ -335,14 +336,18 @@ function buildResolvedContextLocation(
     return `${issue.placeLabel} de ${issue.participantSuggestion}`;
   }
   if (choice === "other" && custom) {
-    return issue.mode === "generic" ? custom : `${issue.placeLabel} de ${custom}`;
+    return issue.mode === "generic"
+      ? custom
+      : `${issue.placeLabel} de ${custom}`;
   }
   if (choice === "unknown") return issue.unresolvedLabel;
 
   return "";
 }
 
-export default function CaptureClient({ initialText = "" }: CaptureClientProps) {
+export default function CaptureClient({
+  initialText = "",
+}: CaptureClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -350,18 +355,21 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
 
   const incomingText = useMemo(
     () => pickIncomingText(searchParams, initialText),
-    [initialText, searchParams]
+    [initialText, searchParams],
   );
 
-  const source = useMemo(() => pickIncomingSource(searchParams), [searchParams]);
+  const source = useMemo(
+    () => pickIncomingSource(searchParams),
+    [searchParams],
+  );
   const shouldReadClipboard = useMemo(
     () => shouldReadClipboardForSource(source),
-    [source]
+    [source],
   );
   const intent = useMemo(() => pickIntent(searchParams), [searchParams]);
   const proposalEventId = useMemo(
     () => pickProposalEventId(searchParams),
-    [searchParams]
+    [searchParams],
   );
   const isExplicitSharedIntent = intent === "shared";
 
@@ -373,20 +381,23 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   const [isSavingLater, setIsSavingLater] = useState(false);
 
   const parsed = useMemo(() => parseQuickCapture(draft.trim()), [draft]);
+  const parserWarnings = parsed.warnings ?? [];
+  const hasParserWarnings = parserWarnings.length > 0;
   const contextPlaceIssue = useMemo(
     () => detectContextualPlaceIssue(draft.trim(), parsed.participants),
-    [draft, parsed.participants]
+    [draft, parsed.participants],
   );
-  const [contextPlaceChoice, setContextPlaceChoice] = useState<ContextPlaceChoice>(null);
+  const [contextPlaceChoice, setContextPlaceChoice] =
+    useState<ContextPlaceChoice>(null);
   const [contextPlaceCustomValue, setContextPlaceCustomValue] = useState("");
   const resolvedContextLocation = useMemo(
     () =>
       buildResolvedContextLocation(
         contextPlaceIssue,
         contextPlaceChoice,
-        contextPlaceCustomValue
+        contextPlaceCustomValue,
       ),
-    [contextPlaceChoice, contextPlaceCustomValue, contextPlaceIssue]
+    [contextPlaceChoice, contextPlaceCustomValue, contextPlaceIssue],
   );
   const contextLocationPreview =
     resolvedContextLocation || contextPlaceIssue?.unresolvedLabel || "";
@@ -395,7 +406,8 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     parsed.signals.mentionsPeople ||
     parsed.signals.mentionsCouple ||
     parsed.locationSource === "house_of";
-  const shouldCreateGroupPlan = isExplicitSharedIntent || inferredGroupPlanIntent;
+  const shouldCreateGroupPlan =
+    isExplicitSharedIntent || inferredGroupPlanIntent;
   const isSharedIntent = isExplicitSharedIntent;
 
   useEffect(() => {
@@ -464,7 +476,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       .catch(() => {
         setClipboardState("blocked");
         setClipboardNotice(
-          "No pudimos leer tu portapapeles. Puedes pegar el texto manualmente."
+          "No pudimos leer tu portapapeles. Puedes pegar el texto manualmente.",
         );
       });
   }, [incomingText, shouldReadClipboard]);
@@ -475,13 +487,23 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   const cleanedNotes = cleanTemporalNoise(rawNotes);
   const prettyNotes = sentenceCase(cleanedNotes);
   const durationMinutes = parsed.durationMinutes || 60;
-  const hasParsedDate = Boolean(parsed.date && !Number.isNaN(parsed.date.getTime()));
-  const hasDateDetected = Boolean(parsed.signals.hasExplicitDate && hasParsedDate);
-  const hasTimeDetected = Boolean(parsed.signals.hasExplicitTime && parsed.startHour !== null);
+  const hasParsedDate = Boolean(
+    parsed.date && !Number.isNaN(parsed.date.getTime()),
+  );
+  const hasDateDetected = Boolean(
+    parsed.signals.hasExplicitDate && hasParsedDate,
+  );
+  const hasTimeDetected = Boolean(
+    parsed.signals.hasExplicitTime && parsed.startHour !== null,
+  );
   const hasLocationDetected = Boolean(
-    resolveLocationQueryForDetails(parsed.locationQuery, parsed.participants, draft.trim()) ||
-      resolvedContextLocation ||
-      contextPlaceIssue?.unresolvedLabel
+    resolveLocationQueryForDetails(
+      parsed.locationQuery,
+      parsed.participants,
+      draft.trim(),
+    ) ||
+    resolvedContextLocation ||
+    contextPlaceIssue?.unresolvedLabel,
   );
   const canContinue = Boolean(draft.trim() && normalizedTitle);
   const hasNotes = Boolean(prettyNotes);
@@ -501,7 +523,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       date: !hasDateDetected,
       notes: !hasNotes,
     }),
-    [hasDateDetected, hasNotes, title]
+    [hasDateDetected, hasNotes, title],
   );
 
   const clarityScore = useMemo(() => {
@@ -511,9 +533,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       Number(!missingChecks.notes);
 
     if (score <= 1) return "low";
-    if (score === 2) return "medium";
+    if (score === 2 || hasParserWarnings) return "medium";
     return "high";
-  }, [missingChecks]);
+  }, [hasParserWarnings, missingChecks]);
 
   const parsingStatus = useMemo(() => {
     if (isDraftEmpty) {
@@ -564,12 +586,30 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       };
     }
 
+    if (hasParserWarnings) {
+      return {
+        label: "Plan casi listo, pero revisa una contradicción",
+        tone: "warn" as const,
+        help:
+          parserWarnings[0] ||
+          "Encontré algo que conviene confirmar antes de guardar.",
+      };
+    }
+
     return {
       label: "Plan claro y listo para continuar",
       tone: "success" as const,
       help: "Revisa los datos detectados y confirma para pasar al detalle final del plan.",
     };
-  }, [hasDateDetected, hasTimeDetected, isDraftEmpty, isSharedIntent, normalizedTitle]);
+  }, [
+    hasDateDetected,
+    hasParserWarnings,
+    hasTimeDetected,
+    isDraftEmpty,
+    isSharedIntent,
+    normalizedTitle,
+    parserWarnings,
+  ]);
 
   const summaryLine = useMemo(() => {
     if (!hasDateDetected) {
@@ -603,7 +643,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       resolveLocationQueryForDetails(
         parsed.locationQuery,
         parsed.participants,
-        draft.trim()
+        draft.trim(),
       );
 
     if (locationQueryForDetails) {
@@ -633,7 +673,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     if (parsed.startHour !== null) {
       params.set(
         "time",
-        `${String(parsed.startHour).padStart(2, "0")}:${String(parsed.startMinutes).padStart(2, "0")}`
+        `${String(parsed.startHour).padStart(2, "0")}:${String(parsed.startMinutes).padStart(2, "0")}`,
       );
     }
 
@@ -702,13 +742,13 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       }
 
       window.alert(
-        "La propuesta quedó pendiente. Puedes volver más tarde desde el link."
+        "La propuesta quedó pendiente. Puedes volver más tarde desde el link.",
       );
       router.push("/summary");
     } catch (error) {
       console.error("CaptureClient.handleLater", error);
       window.alert(
-        "No pudimos guardar la propuesta como pendiente. Inténtalo otra vez."
+        "No pudimos guardar la propuesta como pendiente. Inténtalo otra vez.",
       );
     } finally {
       setIsSavingLater(false);
@@ -753,7 +793,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               style={{
                 fontSize: 12,
                 fontWeight: 900,
-                                letterSpacing: "0.01em",
+                letterSpacing: "0.01em",
                 color: "#7dd3fc",
               }}
             >
@@ -806,7 +846,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               fontSize: 12,
               fontWeight: 800,
               letterSpacing: "0.01em",
-                          }}
+            }}
           >
             {isManualEntry ? "Crear plan" : "Quick Capture"}
           </span>
@@ -824,7 +864,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               fontWeight: 700,
             }}
           >
-            {isManualEntry ? "Entrada manual" : `Fuente: ${humanizeSource(source)}`}
+            {isManualEntry
+              ? "Entrada manual"
+              : `Fuente: ${humanizeSource(source)}`}
           </span>
 
           {isSharedIntent ? (
@@ -1173,7 +1215,11 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               />
               <PreviewRow
                 label="Fecha"
-                value={hasDateDetected ? formatDateLabel(parsed.date) : "Fecha por confirmar"}
+                value={
+                  hasDateDetected
+                    ? formatDateLabel(parsed.date)
+                    : "Fecha por confirmar"
+                }
                 muted={missingChecks.date}
                 severity={missingChecks.date ? "warn" : "default"}
               />
@@ -1189,6 +1235,46 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 severity={contextPlaceIssue ? "warn" : "default"}
               />
             </div>
+
+            {hasParserWarnings ? (
+              <div
+                style={{
+                  marginTop: 14,
+                  borderRadius: 18,
+                  padding: 14,
+                  background: "rgba(245, 158, 11, 0.10)",
+                  border: "1px solid rgba(245, 158, 11, 0.24)",
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#fef3c7",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Revisa antes de guardar
+                </p>
+                <ul
+                  style={{
+                    margin: "8px 0 0 18px",
+                    padding: 0,
+                    display: "grid",
+                    gap: 5,
+                    color: "rgba(254, 243, 199, 0.94)",
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {parserWarnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             {contextPlaceIssue ? (
               <div
@@ -1231,7 +1317,8 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                     lineHeight: 1.45,
                   }}
                 >
-                  No voy a adivinar. Si no estás seguro, lo dejamos por confirmar.
+                  No voy a adivinar. Si no estás seguro, lo dejamos por
+                  confirmar.
                 </p>
 
                 <div
@@ -1256,7 +1343,8 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                       active={contextPlaceChoice === "participant"}
                       onClick={() => setContextPlaceChoice("participant")}
                     >
-                      {contextPlaceIssue.placeLabel} de {contextPlaceIssue.participantSuggestion}
+                      {contextPlaceIssue.placeLabel} de{" "}
+                      {contextPlaceIssue.participantSuggestion}
                     </ContextChoiceButton>
                   ) : null}
 
@@ -1264,7 +1352,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                     active={contextPlaceChoice === "other"}
                     onClick={() => setContextPlaceChoice("other")}
                   >
-                    {contextPlaceIssue.mode === "generic" ? "Poner nombre" : "Otra persona"}
+                    {contextPlaceIssue.mode === "generic"
+                      ? "Poner nombre"
+                      : "Otra persona"}
                   </ContextChoiceButton>
 
                   <ContextChoiceButton
@@ -1278,7 +1368,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 {contextPlaceChoice === "other" ? (
                   <input
                     value={contextPlaceCustomValue}
-                    onChange={(event) => setContextPlaceCustomValue(event.target.value)}
+                    onChange={(event) =>
+                      setContextPlaceCustomValue(event.target.value)
+                    }
                     placeholder={
                       contextPlaceIssue.mode === "generic"
                         ? `Ej. ${contextPlaceIssue.placeLabel} Regatas, Playa Asia, Cancha del cole`
@@ -1316,7 +1408,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               {summaryLine}
             </div>
 
-            {(missingChecks.title || missingChecks.date || missingChecks.notes) && (
+            {(missingChecks.title ||
+              missingChecks.date ||
+              missingChecks.notes) && (
               <div
                 style={{
                   marginTop: 12,
@@ -1346,9 +1440,15 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                     fontSize: 13,
                   }}
                 >
-                  {missingChecks.title ? <li>Agregar el nombre del plan.</li> : null}
-                  {missingChecks.date ? <li>Incluir día y hora (ej. viernes 8pm).</li> : null}
-                  {missingChecks.notes ? <li>Añadir contexto breve (con quién o dónde).</li> : null}
+                  {missingChecks.title ? (
+                    <li>Agregar el nombre del plan.</li>
+                  ) : null}
+                  {missingChecks.date ? (
+                    <li>Incluir día y hora (ej. viernes 8pm).</li>
+                  ) : null}
+                  {missingChecks.notes ? (
+                    <li>Añadir contexto breve (con quién o dónde).</li>
+                  ) : null}
                 </ul>
               </div>
             )}
@@ -1414,7 +1514,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               style={{
                 fontSize: 12,
                 fontWeight: 900,
-                                letterSpacing: "0.01em",
+                letterSpacing: "0.01em",
                 color: "#bfdbfe",
               }}
             >
@@ -1442,7 +1542,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
             marginTop: 22,
           }}
         >
-          {isSharedIntent && (!hasDateDetected || !hasTimeDetected) && canContinue ? (
+          {isSharedIntent &&
+          (!hasDateDetected || !hasTimeDetected) &&
+          canContinue ? (
             <div
               style={{
                 width: "100%",
@@ -1455,7 +1557,8 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 lineHeight: 1.45,
               }}
             >
-              Te recomiendo agregar fecha/hora antes de compartir para evitar idas y vueltas.
+              Te recomiendo agregar fecha/hora antes de compartir para evitar
+              idas y vueltas.
             </div>
           ) : null}
 
@@ -1479,7 +1582,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 ? "0 12px 30px rgba(37, 99, 235, 0.26)"
                 : "none",
             }}
-            >
+          >
             {isSharedIntent && (!hasDateDetected || !hasTimeDetected)
               ? "Continuar y confirmar fecha/hora"
               : isSharedIntent
@@ -1617,7 +1720,7 @@ function PreviewRow({
         style={{
           fontSize: 12,
           fontWeight: 800,
-                    letterSpacing: "0.01em",
+          letterSpacing: "0.01em",
           color:
             severity === "warn"
               ? "rgba(253, 230, 138, 0.95)"
