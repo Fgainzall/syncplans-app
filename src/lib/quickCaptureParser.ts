@@ -87,7 +87,6 @@ const TITLE_NOTES_CONNECTORS = [
   " donde ",
   " en ",
   " para ",
-  " por ",
 ];
 
 const LOCATION_INVALID_SINGLE_TOKENS = new Set([
@@ -151,6 +150,17 @@ const LOCATION_TIME_WORDS = new Set([
 const LOCATION_BREAK_TOKENS = [
   " con ",
   " para ",
+  " por ",
+  " llevar ",
+  " revisar ",
+  " confirmar ",
+  " no ",
+  " cena ",
+  " almuerzo ",
+  " desayuno ",
+  " previa ",
+  " salimos ",
+  " regresamos ",
   " a las ",
   " a la ",
   " al ",
@@ -207,6 +217,12 @@ const NAME_STOPWORDS = new Set([
   "tipo",
   "desde",
   "hasta",
+  "antes",
+  "despues",
+  "después",
+  "luego",
+  "salimos",
+  "regresamos",
   "manana",
   "mañana",
   "hoy",
@@ -276,6 +292,17 @@ function collapseSpaces(input: string) {
   return String(input ?? "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeCompactTimeExpressions(input: string) {
+  return String(input ?? "").replace(
+    /\b([01]?\d|2[0-3])([0-5]\d)\s*(a\.?m\.?|p\.?m\.?|am|pm)\b/gi,
+    (_match, rawHour: string, rawMinutes: string, rawPeriod: string) => {
+      const hour = Number(rawHour);
+      if (!Number.isFinite(hour)) return String(_match ?? "");
+      return `${hour}:${rawMinutes} ${rawPeriod}`;
+    },
+  );
 }
 
 function capitalizeFirst(input: string) {
@@ -763,6 +790,11 @@ function extractParticipants(raw: string): string[] {
   for (const pattern of occasionOwnerPatterns) {
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(sourceRaw)) !== null) {
+      const previousContext = sourceRaw.slice(Math.max(0, match.index - 24), match.index);
+      if (/\b(confirmar|coordinar|avisar|preguntar|consultar|no\s+invitar)\s*$/i.test(previousContext)) {
+        continue;
+      }
+
       const chunk = stripTrailingTimeAndDate(String(match[1] ?? "").trim());
       if (!chunk) continue;
 
@@ -800,6 +832,11 @@ function extractParticipants(raw: string): string[] {
   for (const pattern of patterns) {
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(sourceRaw)) !== null) {
+      const previousContext = sourceRaw.slice(Math.max(0, match.index - 24), match.index);
+      if (/\b(confirmar|coordinar|avisar|preguntar|consultar|no\s+invitar)\s*$/i.test(previousContext)) {
+        continue;
+      }
+
       const chunk = stripTrailingTimeAndDate(String(match[1] ?? "").trim());
       if (!chunk) continue;
 
@@ -875,11 +912,17 @@ function cutAtBreakToken(value: string): string {
   let result = String(value ?? "");
 
   for (const token of LOCATION_BREAK_TOKENS) {
-    const idx = normalizeForMatching(result).indexOf(
-      normalizeForMatching(token),
+    const normalizedToken = normalizeForMatching(token);
+    if (!normalizedToken) continue;
+
+    const tokenRegex = new RegExp(
+      `(?:^|\\s)${escapeRegExp(normalizedToken)}(?:\\s|$)`,
+      "i",
     );
-    if (idx > 0) {
-      result = result.slice(0, idx);
+    const match = tokenRegex.exec(normalizeForMatching(result));
+
+    if (match && match.index > 0) {
+      result = result.slice(0, match.index);
       break;
     }
   }
@@ -942,7 +985,7 @@ function isProbablyValidLocationFragment(value: string): boolean {
 }
 
 const LOCATION_BOUNDARY_WORDS =
-  "con|junto a|para|a las|a la|alas|tipo|el proximo|el próximo|la proxima|la próxima|proximo|próximo|proxima|próxima|siguiente|este|esta|hoy|mañana|manana|pasado mañana|pasado manana|el\\s+lunes|el\\s+martes|el\\s+miercoles|el\\s+miércoles|el\\s+jueves|el\\s+viernes|el\\s+sabado|el\\s+sábado|el\\s+domingo|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|la\\s+manana|la\\s+mañana|la\\s+tarde|la\\s+noche|fin de semana|finde|de\\s+\\d{1,2}(?::\\d{2})?";
+  "con|junto a|para|por|llevar|revisar|confirmar|no llegar|no reservar|no invitar|no poner|cena|almuerzo|desayuno|previa|salimos|regresamos|a las|a la|alas|tipo|el proximo|el próximo|la proxima|la próxima|proximo|próximo|proxima|próxima|siguiente|este|esta|hoy|mañana|manana|pasado mañana|pasado manana|el\\s+lunes|el\\s+martes|el\\s+miercoles|el\\s+miércoles|el\\s+jueves|el\\s+viernes|el\\s+sabado|el\\s+sábado|el\\s+domingo|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|la\\s+manana|la\\s+mañana|la\\s+tarde|la\\s+noche|fin de semana|finde|de\\s+\\d{1,2}(?::\\d{2})?";
 
 function buildLocationConnectorRegex(connector: string) {
   const safeConnector = connector.replace(/\s+/g, "\\s+");
@@ -989,8 +1032,22 @@ function detectLocationIntent(raw: string): {
 } {
   const text = String(raw ?? "");
 
+  const travelDestinationMatch = text.match(
+    /\bviaje\s+a\s+(.{2,60}?)(?=\s+(?:con|salimos|sale|salgo|el\s+lunes|el\s+martes|el\s+miercoles|el\s+miércoles|el\s+jueves|el\s+viernes|el\s+sabado|el\s+sábado|el\s+domingo|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|hoy|mañana|manana|pasado|a\s+las|a\s+la|alas|de\s+\d{1,2})\b|[.,;:!?]|$)/i,
+  );
+  if (travelDestinationMatch?.[1]) {
+    const cleaned = sanitizeLocationFragment(String(travelDestinationMatch[1] ?? ""));
+    if (isProbablyValidLocationFragment(cleaned)) {
+      return {
+        locationQuery: capitalizeNameLikeText(cleaned),
+        locationSource: "connector",
+        locationConfidence: "medium",
+      };
+    }
+  }
+
   const houseMatch = text.match(
-    /\ben\s+(?:la\s+|el\s+)?casa\s+de\s+(.{1,60}?)(?=\s+(?:con|a\s+las|a\s+la|alas|tipo|el\s+proximo|el\s+próximo|la\s+proxima|la\s+próxima|proximo|próximo|proxima|próxima|siguiente|este|esta|hoy|mañana|manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b|[.,;:!?]|$)/i,
+    /\ben\s+(?:la\s+|el\s+)?casa\s+de\s+(.{1,80}?)(?=\s+(?:cena|almuerzo|desayuno|previa|cumple|reunion|reunión|partido|viaje|por|llevar|revisar|confirmar|no\s+(?:llegar|reservar|invitar|poner)|con|a\s+las|a\s+la|alas|tipo|el\s+proximo|el\s+próximo|la\s+proxima|la\s+próxima|proximo|próximo|proxima|próxima|siguiente|este|esta|hoy|mañana|manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b|[.,;:!?]|$)/i,
   );
   if (houseMatch) {
     const cleaned = sanitizeLocationFragment(`Casa de ${houseMatch[1] ?? ""}`);
@@ -1357,9 +1414,10 @@ function extractTimeRange(text: string): {
       raw,
       rangeMatch[0] ?? "",
     );
+    const sharedPeriod = startPeriod || endPeriod || inferredRangePeriod;
     const startHour = normalizeHourFromCapture(
       rawStartHour,
-      startPeriod || inferredRangePeriod,
+      startPeriod || sharedPeriod,
     );
     let endHour = normalizeHourFromCapture(
       rawEndHour,
@@ -1460,7 +1518,8 @@ function extractDuration(text: string): number {
   const range = extractTimeRange(text);
   if (range.startHour !== null && range.endHour !== null) {
     const start = range.startHour * 60 + range.startMinutes;
-    const end = range.endHour * 60 + range.endMinutes;
+    let end = range.endHour * 60 + range.endMinutes;
+    if (end <= start) end += 24 * 60;
     if (end > start) return Math.max(30, end - start);
   }
 
@@ -1814,6 +1873,116 @@ function buildSemanticTitle(baseTitle: string, participants: string[]): string {
 }
 
 
+
+function removeLocationIntentFromText(
+  text: string,
+  locationQuery: string | null,
+  source: "connector" | "at_symbol" | "house_of" | null,
+) {
+  let value = collapseSpaces(text);
+  if (!value || !locationQuery || !source) return value;
+
+  const normalizedValue = normalizeForMatching(value);
+  const normalizedLocation = normalizeForMatching(locationQuery);
+  if (
+    /^viaje\s+a\s+/.test(normalizedValue) &&
+    normalizedLocation &&
+    normalizedValue.includes(`viaje a ${normalizedLocation}`)
+  ) {
+    return value;
+  }
+
+  const escaped = escapeRegExp(locationQuery);
+  if (source === "at_symbol") {
+    value = value.replace(new RegExp(String.raw`@\s*${escaped}`, "i"), " ");
+  } else if (source === "house_of") {
+    const houseName = locationQuery.replace(/^Casa\s+de\s+/i, "").trim();
+    const escapedHouseName = escapeRegExp(houseName);
+    value = value.replace(
+      new RegExp(
+        String.raw`\ben\s+(?:la\s+|el\s+)?casa\s+de\s+(?:${escaped}|${escapedHouseName})(?=\s|[.,;:!?]|$)`,
+        "i",
+      ),
+      " ",
+    );
+  } else {
+    value = value
+      .replace(
+        new RegExp(
+          String.raw`\b(?:donde|en|cerca de|junto a|por)\s+(?:el\s+|la\s+)?${escaped}(?=\s|[.,;:!?]|$)`,
+          "i",
+        ),
+        " ",
+      )
+      .replace(
+        new RegExp(
+          String.raw`\ba\s+${escaped}(?=\s+(?:con|salimos|sale|salgo)\b|[.,;:!?]|$)`,
+          "i",
+        ),
+        " ",
+      );
+  }
+
+  return collapseSpaces(value.replace(/^[,.;:\-\s]+|[,.;:\-\s]+$/g, ""));
+}
+
+function cleanTitleActionNoise(text: string) {
+  return collapseSpaces(
+    String(text ?? "")
+      .replace(/\b(salimos|salgo|sale)\b\s*$/i, "")
+      .replace(/\b(regresamos|regreso|vuelvo|volvemos)\b\s*$/i, "")
+      .replace(/\b(y\s+)?(salimos|salgo|sale|regresamos|regreso|vuelvo|volvemos)\b\s*$/i, "")
+      .replace(/^[,.;:\-\s]+|[,.;:\-\s]+$/g, ""),
+  );
+}
+
+function splitOperationalNotes(text: string): { title: string; notes: string } {
+  const value = collapseSpaces(text);
+  if (!value) return { title: "", notes: "" };
+
+  const markers = [
+    /[,;]?\s+\b(llevar\b.*)$/i,
+    /[,;]?\s+\b(no\s+(?:reservar|invitar|poner|llegar)\b.*)$/i,
+    /[,;]?\s+\b(confirmar\s+con\b.*)$/i,
+    /[,;]?\s+\b(revisar\b.*)$/i,
+    /[,;]?\s+\b(hotel\s+pendiente\b.*)$/i,
+  ];
+
+  for (const marker of markers) {
+    const match = marker.exec(value);
+    if (!match || match.index <= 0) continue;
+    const title = collapseSpaces(value.slice(0, match.index));
+    const notes = collapseSpaces(match[1] ?? "");
+    if (title && notes) return { title, notes };
+  }
+
+  return { title: value, notes: "" };
+}
+
+function splitTitleAndNotesSmart(
+  original: string,
+  locationIntent: {
+    locationQuery: string | null;
+    locationSource: "connector" | "at_symbol" | "house_of" | null;
+  },
+): { title: string; notes: string } {
+  const cleaned = cleanCapturedTitleText(original);
+  const withoutLocation = removeLocationIntentFromText(
+    cleaned,
+    locationIntent.locationQuery,
+    locationIntent.locationSource,
+  );
+
+  const split = splitTitleAndNotes(withoutLocation || cleaned || original);
+  const titleCandidate = cleanTitleActionNoise(split.title || withoutLocation || cleaned);
+  const operationalSplit = splitOperationalNotes(titleCandidate);
+
+  return {
+    title: operationalSplit.title || titleCandidate || cleaned || original.trim(),
+    notes: joinNotes(split.notes, operationalSplit.notes),
+  };
+}
+
 function splitPrimaryAndSecondaryPlan(raw: string): {
   primaryText: string;
   secondaryNotes: string;
@@ -1821,7 +1990,7 @@ function splitPrimaryAndSecondaryPlan(raw: string): {
   const source = String(raw ?? "").trim();
   if (!source) return { primaryText: "", secondaryNotes: "" };
 
-  const secondaryMarker = /\s+(?:y\s+)?(?:despu[eé]s|m[aá]s\s+tarde)\b|\s+y\s+luego\b/i;
+  const secondaryMarker = /\s+(?:y\s+)?(?:despu[eé]s|m[aá]s\s+tarde)\b|\s+y\s+(?:luego|antes|regresamos)\b/i;
   const match = secondaryMarker.exec(source);
 
   if (!match || match.index === undefined || match.index < 3) {
@@ -1834,7 +2003,7 @@ function splitPrimaryAndSecondaryPlan(raw: string): {
       .slice(match.index)
       .replace(/^\s*y\s+/i, "")
       .replace(/^[,.;:\-\s]+|[,.;:\-\s]+$/g, "")
-      .replace(/^(despu[eé]s|m[aá]s\s+tarde|luego)\s+/i, "$1: "),
+      .replace(/^(despu[eé]s|m[aá]s\s+tarde|luego|antes|regresamos)\s+/i, "$1: "),
   );
 
   if (!primaryText || !secondaryNotes) {
@@ -1855,7 +2024,7 @@ function joinNotes(...parts: Array<string | null | undefined>) {
 }
 
 export function parseQuickCapture(input: string): ParsedQuickCapture {
-  const raw = String(input || "").trim();
+  const raw = normalizeCompactTimeExpressions(String(input || "").trim());
   const planContext = splitPrimaryAndSecondaryPlan(raw);
   const parsingRaw = planContext.primaryText || raw;
   const normalized = normalizeText(parsingRaw);
@@ -1924,7 +2093,7 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
     );
   }
 
-  const split = splitTitleAndNotes(parsingRaw);
+  const split = splitTitleAndNotesSmart(parsingRaw, locationIntent);
   const titleBase =
     explicitRange && split.title && /^en\s+/i.test(split.notes)
       ? `${split.title} ${split.notes}`
