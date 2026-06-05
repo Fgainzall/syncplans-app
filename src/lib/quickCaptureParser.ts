@@ -69,14 +69,14 @@ const MONTH_WORD_PATTERN =
 
 const EXPLICIT_DATE_RANGE_REGEX = new RegExp(
   String.raw`\b(?:del|desde\s+el|desde)\s+` +
-    String.raw`\d{1,2}(?:(?:\s+de)?\s+(?:${MONTH_WORD_PATTERN})|[/-]\d{1,2}(?:[/-]\d{2,4})?)?(?:\s+de\s+\d{4})?` +
+    String.raw`\d{1,2}(?:(?:\s+de)?\s+(?:${MONTH_WORD_PATTERN})|[/-]\d{1,2}(?:[/-]\d{2,4})?)?(?:\s+(?:de\s+)?\d{4})?` +
     String.raw`\s+(?:al|a|hasta|hasta\s+el)\s+` +
-    String.raw`\d{1,2}(?:(?:\s+de)?\s+(?:${MONTH_WORD_PATTERN})|[/-]\d{1,2}(?:[/-]\d{2,4})?)?(?:\s+de\s+\d{4})?`,
+    String.raw`\d{1,2}(?:(?:\s+de)?\s+(?:${MONTH_WORD_PATTERN})|[/-]\d{1,2}(?:[/-]\d{2,4})?)?(?:\s+(?:de\s+)?\d{4})?`,
   "gi",
 );
 
 const EXPLICIT_SINGLE_DATE_REGEX = new RegExp(
-  String.raw`\b\d{1,2}(?:(?:\s+de)?\s+(?:${MONTH_WORD_PATTERN})|[/-]\d{1,2}(?:[/-]\d{2,4})?)(?:\s+de\s+\d{4})?\b`,
+  String.raw`\b\d{1,2}(?:(?:\s+de)?\s+(?:${MONTH_WORD_PATTERN})|[/-]\d{1,2}(?:[/-]\d{2,4})?)(?:\s+(?:de\s+)?\d{4})?\b`,
   "gi",
 );
 
@@ -312,6 +312,7 @@ function capitalizeNameLikeText(input: string) {
       if (!part || /^\s+$/.test(part) || /,\s*/.test(part)) return part;
       const clean = normalizeForMatching(part);
       if (!clean) return part;
+      if (clean === "am" || clean === "pm") return clean;
       if (smallWords.has(clean) && index !== 0) return clean;
       return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
     })
@@ -328,7 +329,7 @@ function formatTitle(input: string) {
 function formatNotes(input: string) {
   const cleaned = collapseSpaces(input);
   if (!cleaned) return "";
-  return capitalizeNameLikeText(toSentenceCase(cleaned));
+  return capitalizeFirst(cleaned);
 }
 
 function addDays(date: Date, days: number) {
@@ -419,7 +420,7 @@ function extractWeekdayDayDate(text: string): Date | null {
   const raw = String(text ?? "");
   const match = raw.match(
     new RegExp(
-      String.raw`\b(?:el\s+)?(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\s+(\d{1,2})(?:\s+de\s+(${MONTH_WORD_PATTERN}))?(?:\s+de\s+(\d{2,4}))?\b`,
+      String.raw`\b(?:el\s+)?(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\s+(\d{1,2})(?:\s+de\s+(${MONTH_WORD_PATTERN}))?(?:\s+(?:de\s+)?(\d{2,4}))?\b`,
       "i",
     ),
   );
@@ -579,7 +580,7 @@ function parseExplicitDateFragment(
   const normalized = normalizeForMatching(raw);
   const longMatch = normalized.match(
     new RegExp(
-      `\\b(\\d{1,2})(?:\\s+de)?\\s+(${MONTH_WORD_PATTERN})(?:\\s+de\\s+(\\d{4}|\\d{2}))?\\b`,
+      `\\b(\\d{1,2})(?:\\s+de)?\\s+(${MONTH_WORD_PATTERN})(?:\\s+(?:de\\s+)?(\\d{4}|\\d{2}))?\\b`,
       "i",
     ),
   );
@@ -969,6 +970,9 @@ function stripLeadingLocationArticle(value: string) {
         "depa",
         "departamento",
         "oficina",
+        "iglesia",
+        "parroquia",
+        "templo",
         "casa",
       ].includes(kind)
     ) {
@@ -1567,7 +1571,7 @@ function removeDateAndTimeTokens(text: string): string {
     .replace(EXPLICIT_SINGLE_DATE_REGEX, " ")
     .replace(
       new RegExp(
-        String.raw`\b(?:el\s+)?(?:lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\s+\d{1,2}(?:\s+de\s+(?:${MONTH_WORD_PATTERN}))?(?:\s+de\s+\d{2,4})?\b`,
+        String.raw`\b(?:el\s+)?(?:lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\s+\d{1,2}(?:\s+de\s+(?:${MONTH_WORD_PATTERN}))?(?:\s+(?:de\s+)?\d{2,4})?\b`,
         "gi",
       ),
       " ",
@@ -1809,23 +1813,66 @@ function buildSemanticTitle(baseTitle: string, participants: string[]): string {
   } más`;
 }
 
+
+function splitPrimaryAndSecondaryPlan(raw: string): {
+  primaryText: string;
+  secondaryNotes: string;
+} {
+  const source = String(raw ?? "").trim();
+  if (!source) return { primaryText: "", secondaryNotes: "" };
+
+  const secondaryMarker = /\s+(?:y\s+)?(?:despu[eé]s|m[aá]s\s+tarde)\b|\s+y\s+luego\b/i;
+  const match = secondaryMarker.exec(source);
+
+  if (!match || match.index === undefined || match.index < 3) {
+    return { primaryText: source, secondaryNotes: "" };
+  }
+
+  const primaryText = collapseSpaces(source.slice(0, match.index));
+  const secondaryNotes = collapseSpaces(
+    source
+      .slice(match.index)
+      .replace(/^\s*y\s+/i, "")
+      .replace(/^[,.;:\-\s]+|[,.;:\-\s]+$/g, "")
+      .replace(/^(despu[eé]s|m[aá]s\s+tarde|luego)\s+/i, "$1: "),
+  );
+
+  if (!primaryText || !secondaryNotes) {
+    return { primaryText: source, secondaryNotes: "" };
+  }
+
+  return { primaryText, secondaryNotes };
+}
+
+function joinNotes(...parts: Array<string | null | undefined>) {
+  return collapseSpaces(
+    parts
+      .map((part) => collapseSpaces(String(part ?? "")))
+      .filter(Boolean)
+      .join(". ")
+      .replace(/\s+([,.;:!?])/g, "$1"),
+  );
+}
+
 export function parseQuickCapture(input: string): ParsedQuickCapture {
   const raw = String(input || "").trim();
-  const normalized = normalizeText(raw);
+  const planContext = splitPrimaryAndSecondaryPlan(raw);
+  const parsingRaw = planContext.primaryText || raw;
+  const normalized = normalizeText(parsingRaw);
 
-  const participants = extractParticipants(raw);
-  const signals = detectSignals(raw, participants);
-  const locationIntent = detectLocationIntent(raw);
-  const explicitRange = extractExplicitDateRange(raw);
+  const participants = extractParticipants(parsingRaw);
+  const signals = detectSignals(parsingRaw, participants);
+  const locationIntent = detectLocationIntent(parsingRaw);
+  const explicitRange = extractExplicitDateRange(parsingRaw);
   const explicitWeekdayDayDate = explicitRange
     ? null
-    : extractWeekdayDayDate(raw);
+    : extractWeekdayDayDate(parsingRaw);
   const explicitSingleDate =
     explicitRange || explicitWeekdayDayDate
       ? null
-      : extractExplicitSingleDate(raw);
-  const rawTimeRange = extractTimeRange(raw);
-  const explicitClockTime = extractExplicitSingleClock(raw);
+      : extractExplicitSingleDate(parsingRaw);
+  const rawTimeRange = extractTimeRange(parsingRaw);
+  const explicitClockTime = extractExplicitSingleClock(parsingRaw);
   const timeRange = explicitRange
     ? (explicitClockTime ?? {
         startHour: null,
@@ -1838,7 +1885,7 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
     explicitRange?.start ??
     explicitWeekdayDayDate ??
     explicitSingleDate ??
-    extractDay(raw) ??
+    extractDay(parsingRaw) ??
     (timeRange.startHour !== null ? startOfToday() : null);
   const inferredDuration = extractDuration(normalized);
 
@@ -1877,11 +1924,11 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
     );
   }
 
-  const split = splitTitleAndNotes(raw);
+  const split = splitTitleAndNotes(parsingRaw);
   const titleBase =
     explicitRange && split.title && /^en\s+/i.test(split.notes)
       ? `${split.title} ${split.notes}`
-      : split.title || cleanFallbackTitle(raw);
+      : split.title || cleanFallbackTitle(parsingRaw);
   const title = buildSemanticTitle(titleBase, participants);
   const notesWithoutLocation = cleanNotesFromLocationIntent(
     split.notes,
@@ -1892,10 +1939,11 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
     notesWithoutLocation,
     participants,
   );
+  const combinedNotes = joinNotes(cleanedNotes, planContext.secondaryNotes);
 
   return {
-    title: title || formatTitle(cleanFallbackTitle(raw)),
-    notes: formatNotes(cleanedNotes),
+    title: title || formatTitle(cleanFallbackTitle(parsingRaw)),
+    notes: formatNotes(combinedNotes),
     date: finalDate,
     endDate: finalEndDate,
     durationMinutes: duration,

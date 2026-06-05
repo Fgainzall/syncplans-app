@@ -91,6 +91,7 @@ function formatDateLabel(date: Date | null) {
     weekday: "long",
     day: "numeric",
     month: "long",
+    year: "numeric",
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
