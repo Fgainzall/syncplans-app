@@ -457,6 +457,21 @@ function proposalResponseTone(
   return "neutral";
 }
 
+function isStandaloneGoogleCalendarEvent(
+  event: CalendarEventWithOwner | null | undefined
+): boolean {
+  if (!event) return false;
+
+  const groupId = String(event.groupId ?? "").trim();
+  if (groupId) return false;
+
+  const externalSource = String(event.external_source ?? "")
+    .trim()
+    .toLowerCase();
+
+  return externalSource === "google";
+}
+
 function getCalendarEventStatus(input: {
   eventId: string | null | undefined;
   inConflict?: boolean;
@@ -490,6 +505,7 @@ function getTrustSignalLabel(
 }
 
 function getCalendarStatusPresentation(input: {
+  event?: CalendarEventWithOwner | null;
   eventId: string | null | undefined;
   inConflict?: boolean;
   proposalRow?: ProposalResponseRow | null;
@@ -498,8 +514,11 @@ function getCalendarStatusPresentation(input: {
   pendingStyle: React.CSSProperties;
   resolvedStyle: React.CSSProperties;
 }) {
-  const proposalLabel = proposalResponseLabel(input.proposalRow?.response);
-  const proposalTone = proposalResponseTone(input.proposalRow?.response);
+  const effectiveProposalRow = isStandaloneGoogleCalendarEvent(input.event)
+    ? null
+    : input.proposalRow ?? null;
+  const proposalLabel = proposalResponseLabel(effectiveProposalRow?.response);
+  const proposalTone = proposalResponseTone(effectiveProposalRow?.response);
   const trustLabel = getTrustSignalLabel(input.trustSignal, {
     compact: input.compact,
   });
@@ -507,7 +526,7 @@ function getCalendarStatusPresentation(input: {
   const calendarEventStatus = getCalendarEventStatus({
     eventId: input.eventId,
     inConflict: input.inConflict,
-    proposalRow: input.proposalRow,
+    proposalRow: effectiveProposalRow,
     trustSignal: input.trustSignal,
   });
 
@@ -553,7 +572,9 @@ function getValueVisibilitySummary(input: {
 
   for (const event of input.visibleEvents) {
     const trustSignal = input.trustSignals[String(event.id)];
-    const proposalRow = input.proposalResponsesMap[String(event.id)];
+    const proposalRow = isStandaloneGoogleCalendarEvent(event)
+      ? null
+      : input.proposalResponsesMap[String(event.id)];
     const isConflictEvent = input.conflictEventIdsInGrid.has(String(event.id));
     const proposalResponse = String(proposalRow?.response ?? "")
       .trim()
@@ -2329,6 +2350,7 @@ function EventRow({
   const isMultiDay = isMultiDayCalendarEvent(e);
   const proposalRow = proposalResponsesMap?.[String(e.id)];
   const statusPresentation = getCalendarStatusPresentation({
+    event: e,
     eventId: e.id,
     inConflict,
     proposalRow,
@@ -2631,6 +2653,7 @@ cells.push(
         const proposalRow = proposalResponsesMap[String(e.id)];
         const isConflictEvent = conflictEventIdsInGrid.has(String(e.id));
         const cellStatusPresentation = getCalendarStatusPresentation({
+          event: e,
           eventId: e.id,
           inConflict: isConflictEvent,
           proposalRow,

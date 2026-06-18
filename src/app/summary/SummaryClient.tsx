@@ -3388,14 +3388,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       };
     }
 
-    if (nextToday?.start) {
-      return {
-        eyebrow: "Estado del día",
-        title: `Tu próximo plan es a las ${fmtTime(nextToday.start)}`,
-        subtitle: `${nextToday.title}. Por ahora no hay urgencias abiertas; solo mantén claro lo que viene.`,
-        pills,
-      };
-    }
+ if (nextToday?.start) {
+  return {
+    eyebrow: "Estado del día",
+    title: "Todo está bajo control",
+    subtitle: `${todayTotal} planes hoy · ${conflictAlert.count} conflictos · ${pendingTotal} pendientes`,
+    pills,
+  };
+}
 
     if (todayTotal > 0) {
       return {
