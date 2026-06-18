@@ -74,6 +74,7 @@ type CalendarEventWithOwner = CalendarEvent & {
   owner_id?: string | null;
   created_by?: string | null;
   external_source?: string | null;
+  external_id?: string | null;
   external_attendees_count?: number | null;
 };
 
@@ -91,6 +92,7 @@ type CalendarDbEventRow = {
   owner_id?: unknown;
   created_by?: unknown;
   external_source?: unknown;
+  external_id?: unknown;
   external_attendees_count?: unknown;
 };
 
@@ -514,9 +516,17 @@ function getCalendarStatusPresentation(input: {
   pendingStyle: React.CSSProperties;
   resolvedStyle: React.CSSProperties;
 }) {
-  const effectiveProposalRow = isStandaloneGoogleCalendarEvent(input.event)
-    ? null
-    : input.proposalRow ?? null;
+  const isStandaloneGoogle = isStandaloneGoogleCalendarEvent(input.event);
+
+  if (isStandaloneGoogle) {
+    return {
+      status: null,
+      label: null,
+      style: input.resolvedStyle,
+    };
+  }
+
+  const effectiveProposalRow = input.proposalRow ?? null;
   const proposalLabel = proposalResponseLabel(effectiveProposalRow?.response);
   const proposalTone = proposalResponseTone(effectiveProposalRow?.response);
   const trustLabel = getTrustSignalLabel(input.trustSignal, {
@@ -946,6 +956,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
               owner_id: ev.owner_id ?? null,
               created_by: ev.created_by ?? null,
               external_source: ev.external_source ? String(ev.external_source) : null,
+              external_id: ev.external_id ? String(ev.external_id) : null,
               external_attendees_count: Number.isFinite(Number(ev.external_attendees_count))
                 ? Math.max(0, Math.trunc(Number(ev.external_attendees_count)))
                 : 0,

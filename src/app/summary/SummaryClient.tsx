@@ -3719,9 +3719,15 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           />
         ) : (
           <div style={styles.summaryGrid} className="spSum-summaryGrid">
-            <div style={styles.summaryMainColumn} className="spSum-mainColumn">
+            <div style={styles.summaryTopCard} className="spSum-topCard">
               <NextMoveCard move={nextMove} />
+            </div>
 
+            <div style={styles.summaryTopCard} className="spSum-topCard">
+              <DayStatusCard status={dayStatus} />
+            </div>
+
+            <div style={styles.summaryFullWidth} className="spSum-fullWidth">
               <UpcomingSection
                 booting={booting}
                 nextEvent={nextEvent}
@@ -3741,7 +3747,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 confirmingEventIds={confirmingEventIds}
                 showCreateGroupNudge={showCreateGroupNudge}
               />
+            </div>
 
+            <div style={styles.summaryFullWidth} className="spSum-fullWidth">
               <SummaryQuickCaptureCard
                 value={quickCaptureValue}
                 busy={quickCaptureBusy}
@@ -3786,14 +3794,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               />
             </div>
 
-            <div style={styles.summarySideColumn} className="spSum-sideColumn">
-              <DayStatusCard status={dayStatus} />
-
-              {showDeferredLaunchPanels ? (
+            {showDeferredLaunchPanels ? (
+              <div style={styles.summaryFullWidth} className="spSum-fullWidth">
                 <SmartMobilityCard smartMobility={smartMobility} />
-              ) : null}
+              </div>
+            ) : null}
 
-              {shouldShowSummaryHero ? (
+            {shouldShowSummaryHero ? (
+              <div style={styles.summaryFullWidth} className="spSum-fullWidth">
                 <SummaryHero
                   compact={compactSummaryMobile}
                   contextLabel={contextLabel}
@@ -3814,16 +3822,17 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                     })
                   }
                 />
-              ) : null}
+              </div>
+            ) : null}
 
-              {premiumNudge ? (
+            {premiumNudge ? (
+              <div style={styles.summaryFullWidth} className="spSum-fullWidth">
                 <PremiumContextRail
                   nudge={premiumNudge}
                   onPrimary={() => openPremiumFromSummary(premiumNudge.context)}
                 />
-              ) : null}
-
-            </div>
+              </div>
+            ) : null}
 
             {showQuickActions ? (
               <div style={styles.summaryFullWidth} className="spSum-fullWidth">
@@ -3925,9 +3934,9 @@ const styles: Record<string, CSSProperties> = {
   },
   summaryGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.16fr) minmax(340px, 0.84fr)",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 16,
-    alignItems: "start",
+    alignItems: "stretch",
   },
   summaryMainColumn: {
     display: "grid",
@@ -3938,6 +3947,10 @@ const styles: Record<string, CSSProperties> = {
     display: "grid",
     gap: 16,
     minWidth: 0,
+  },
+  summaryTopCard: {
+    minWidth: 0,
+    display: "flex",
   },
   summaryFullWidth: {
     gridColumn: "1 / -1",

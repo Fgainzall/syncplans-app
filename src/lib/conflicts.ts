@@ -36,6 +36,10 @@ export type CalendarEvent = {
 
   // compat viejo
   notes?: string;
+
+  // eventos importados desde calendarios externos
+  external_source?: string | null;
+  external_id?: string | null;
 };
 
 export type ConflictResolution =
@@ -435,6 +439,39 @@ export function conflictKey(aId: string, bId: string) {
   return `cx::${x}::${y}`;
 }
 
+
+function normalizeComparableText(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function isGoogleSource(event: CalendarEvent | null | undefined): boolean {
+  return String(event?.external_source ?? "").trim().toLowerCase() === "google";
+}
+
+function areEquivalentGoogleEvents(
+  a: CalendarEvent | null | undefined,
+  b: CalendarEvent | null | undefined
+): boolean {
+  if (!isGoogleSource(a) || !isGoogleSource(b)) return false;
+
+  const aExternalId = String(a?.external_id ?? "").trim();
+  const bExternalId = String(b?.external_id ?? "").trim();
+
+  if (aExternalId && bExternalId && aExternalId === bExternalId) {
+    return true;
+  }
+
+  const sameTitle =
+    normalizeComparableText(a?.title) === normalizeComparableText(b?.title);
+  const sameStart = String(a?.start ?? "").trim() === String(b?.start ?? "").trim();
+  const sameEnd = String(a?.end ?? "").trim() === String(b?.end ?? "").trim();
+
+  return sameTitle && sameStart && sameEnd;
+}
+
 export function computeVisibleConflicts(events: unknown): ConflictItem[] {
   const list: CalendarEvent[] = Array.isArray(events)
     ? (events.filter(Boolean) as CalendarEvent[])
@@ -470,6 +507,8 @@ export function computeVisibleConflicts(events: unknown): ConflictItem[] {
     }
 
     for (const prev of active) {
+      if (areEquivalentGoogleEvents(prev.e, cur.e)) continue;
+
       const oStart = Math.max(prev.s, cur.s);
       const oEnd = Math.min(prev.en, cur.en);
       if (oStart >= oEnd) continue;
